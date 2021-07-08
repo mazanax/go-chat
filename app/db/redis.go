@@ -66,7 +66,7 @@ func (rd *RedisDriver) CreateUser(email string, username string, name string, en
 	_, err := rd.connection.TxPipelined(rd.ctx, func(pipe redis.Pipeliner) error {
 		_, err := pipe.HSet(
 			rd.ctx,
-			fmt.Sprintf("user(%s)", userUuid),
+			fmt.Sprintf("user:%s", userUuid),
 			map[string]interface{}{
 				"id":        userUuid,
 				"email":     strings.ToLower(email),
@@ -111,7 +111,7 @@ func (rd *RedisDriver) CreateUser(email string, username string, name string, en
 }
 
 func (rd *RedisDriver) GetUser(id string) (models.User, error) {
-	val, err := rd.connection.HGetAll(rd.ctx, fmt.Sprintf("user(%s)", id)).Result()
+	val, err := rd.connection.HGetAll(rd.ctx, fmt.Sprintf("user:%s", id)).Result()
 	switch {
 	case err == redis.Nil || len(val) == 0:
 		return models.User{}, UserNotFound
