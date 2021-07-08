@@ -54,16 +54,18 @@ func (app *App) SignUpHandler() http.HandlerFunc {
 		if len(validationErrors) > 0 {
 			logger.Debug("[http] Bad request: %s %s\n", r.Method, r.URL)
 			sendResponse(w, nil, http.StatusBadRequest)
-
-			//http.Error(w, strings.Join(errors, "\n"), http.StatusBadRequest)
 			return
 		}
 
-		uuid, err := app.UserRepository.CreateUser(req.Email, req.Name, req.Password)
+		uuid, err := app.UserRepository.CreateUser(req.Email, req.Username, req.Name, req.Password)
 		switch {
-		case err == db.EmailAlreadyExists:
+		case errors.Is(err, db.EmailAlreadyExists):
 			logger.Debug("[http] User with email %s already exists: %s %s\n", req.Email, r.Method, r.URL)
-			sendResponse(w, models.UserAlreadyExists, http.StatusBadRequest)
+			sendResponse(w, models.EmailAlreadyExists, http.StatusBadRequest)
+			return
+		case errors.Is(err, db.UsernameAlreadyExists):
+			logger.Debug("[http] User with username %s already exists: %s %s\n", req.Username, r.Method, r.URL)
+			sendResponse(w, models.UsernameAlreadyExists, http.StatusBadRequest)
 			return
 		case err != nil:
 			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)

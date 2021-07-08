@@ -40,9 +40,25 @@ func (rd *RedisDriver) IsEmailExists(email string) bool {
 	return val
 }
 
-func (rd *RedisDriver) CreateUser(email string, name string, encryptedPassword string) (string, error) {
+func (rd *RedisDriver) IsUsernameExists(username string) bool {
+	val, err := rd.connection.HExists(rd.ctx, "usernames", strings.ToLower(username)).Result()
+	switch {
+	case err == redis.Nil:
+		return false
+	case err != nil:
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	return val
+}
+
+func (rd *RedisDriver) CreateUser(email string, username string, name string, encryptedPassword string) (string, error) {
 	if rd.IsEmailExists(email) {
 		return "", EmailAlreadyExists
+	}
+
+	if rd.IsUsernameExists(username) {
+		return "", UsernameAlreadyExists
 	}
 
 	// start transaction
@@ -54,6 +70,7 @@ func (rd *RedisDriver) CreateUser(email string, name string, encryptedPassword s
 			map[string]interface{}{
 				"id":        userUuid,
 				"email":     strings.ToLower(email),
+				"username":  username,
 				"name":      name,
 				"password":  encryptedPassword,
 				"createdAt": time.Now().Unix(),
@@ -66,6 +83,12 @@ func (rd *RedisDriver) CreateUser(email string, name string, encryptedPassword s
 		}
 
 		_, err = pipe.HSet(rd.ctx, "emails", strings.ToLower(email), userUuid).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		_, err = pipe.HSet(rd.ctx, "usernames", strings.ToLower(username), userUuid).Result()
 		if err != nil {
 			_ = pipe.Discard()
 			return err
@@ -101,6 +124,7 @@ func (rd *RedisDriver) GetUser(id string) (models.User, error) {
 	return models.User{
 		ID:        val["id"],
 		Email:     val["email"],
+		Username:  val["username"],
 		Name:      val["name"],
 		Password:  val["password"],
 		CreatedAt: createdAt,

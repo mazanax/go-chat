@@ -9,9 +9,14 @@ type ErrorResponse struct {
 }
 
 var (
-	UserAlreadyExists = ErrorResponse{
+	EmailAlreadyExists = ErrorResponse{
 		Message: "User already exists",
 		Errors:  map[string]string{"email": "User already exists"},
+		Code:    http.StatusBadRequest,
+	}
+	UsernameAlreadyExists = ErrorResponse{
+		Message: "User already exists",
+		Errors:  map[string]string{"username": "User already exists"},
 		Code:    http.StatusBadRequest,
 	}
 	UserNotFound = ErrorResponse{

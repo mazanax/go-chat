@@ -3,6 +3,7 @@ package models
 type User struct {
 	ID        string
 	Email     string
+	Username  string
 	Name      string
 	Password  string
 	CreatedAt int
@@ -12,6 +13,7 @@ type User struct {
 type JsonUser struct {
 	ID        string `json:"id"`
 	Email     string `json:"email"`
+	Username  string `json:"username"`
 	Name      string `json:"name"`
 	CreatedAt int    `json:"created_at"`
 	UpdatedAt int    `json:"updated_at"`
@@ -19,6 +21,7 @@ type JsonUser struct {
 
 type CreateUserRequest struct {
 	Email    string `json:"email" validate:"required,email"`
+	Username string `json:"username" validate:"required,min=3,max=255"`
 	Name     string `json:"name" validate:"required,min=2,max=255"`
 	Password string `json:"password" validate:"required,min=6,max=255"`
 }

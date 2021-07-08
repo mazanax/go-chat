@@ -30,6 +30,7 @@ func mapUserToJson(user models.User) models.JsonUser {
 		ID:        user.ID,
 		Email:     user.Email,
 		Name:      user.Name,
+		Username:  user.Username,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 	}
