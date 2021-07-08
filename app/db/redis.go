@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
@@ -113,7 +114,7 @@ func (rd *RedisDriver) CreateUser(email string, username string, name string, en
 func (rd *RedisDriver) GetUser(id string) (models.User, error) {
 	val, err := rd.connection.HGetAll(rd.ctx, fmt.Sprintf("user:%s", id)).Result()
 	switch {
-	case err == redis.Nil || len(val) == 0:
+	case errors.Is(err, redis.Nil) || len(val) == 0:
 		return models.User{}, UserNotFound
 	case err != nil:
 		logger.Fatal("Redis connection failed: %s", err.Error())
