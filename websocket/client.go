@@ -78,6 +78,8 @@ func (c *Client) readPump() {
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		logger.Debug("-> Got new message from %s: %s\n", c.conn.RemoteAddr().String(), string(message))
 
+		// here store message to database
+
 		c.hub.broadcast <- message
 	}
 }
@@ -139,6 +141,9 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		logger.Error(err.Error())
 		return
 	}
+
+	// here check client's ticket and register (or not) him
+
 	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
 	client.hub.register <- client
 

@@ -36,6 +36,8 @@ func (h *Hub) Run() {
 			h.clients[client] = true
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
+				// here remove user from "online" set
+
 				delete(h.clients, client)
 				close(client.send)
 			}
@@ -44,6 +46,8 @@ func (h *Hub) Run() {
 				select {
 				case client.send <- message:
 				default:
+					// here remove user from "online" set
+
 					close(client.send)
 					delete(h.clients, client)
 				}

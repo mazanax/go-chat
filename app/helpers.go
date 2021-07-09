@@ -1,21 +1,11 @@
 package app
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"github.com/mazanax/go-chat/app/logger"
 	"github.com/mazanax/go-chat/app/models"
-	"math"
 	"net/http"
 )
-
-func randomHexString(length int) string {
-	buff := make([]byte, int(math.Ceil(float64(length)/2)))
-	rand.Read(buff)
-	str := hex.EncodeToString(buff)
-	return str[:length]
-}
 
 func parse(r *http.Request, data interface{}) error {
 	return json.NewDecoder(r.Body).Decode(data)

@@ -7,9 +7,8 @@ import (
 	"github.com/mazanax/go-chat/app/logger"
 	"github.com/mazanax/go-chat/app/models"
 	"github.com/mazanax/go-chat/app/requests"
-	"gopkg.in/go-playground/validator.v9"
+	"github.com/mazanax/go-chat/app/tokens"
 	"net/http"
-	"time"
 )
 
 func (app *App) IndexHandler() http.HandlerFunc {
@@ -43,16 +42,7 @@ func (app *App) SignUpHandler() http.HandlerFunc {
 			return
 		}
 
-		v := validator.New()
-		err = v.Struct(req)
-
-		var validationErrors []string
-		if err != nil {
-			for _, e := range err.(validator.ValidationErrors) {
-				validationErrors = append(validationErrors, e.Translate(nil))
-			}
-		}
-
+		validationErrors := requests.Validate(req)
 		if len(validationErrors) > 0 {
 			logger.Debug("[http] Bad request: %s %s\n", r.Method, r.URL)
 			sendResponse(w, nil, http.StatusBadRequest)
@@ -108,7 +98,6 @@ func (app *App) UserHandler() http.HandlerFunc {
 		}
 
 		user, err := app.UserRepository.GetUser(uuid)
-
 		if err != nil && errors.Is(err, db.UserNotFound) {
 			logger.Debug("[http] User #%s not found\n", uuid)
 			sendResponse(w, models.UserNotFound, http.StatusNotFound)
@@ -144,17 +133,10 @@ func (app *App) LoginHandler() http.HandlerFunc {
 			sendResponse(w, models.Unauthorized, http.StatusUnauthorized)
 			return
 		}
-		randomString := randomHexString(64)
-		tokenUUID, err := app.AccessTokenRepository.CreateToken(&user, randomString, time.Duration(48)*time.Hour)
+
+		token, err := tokens.NewToken(app, &user)
 		if err != nil {
 			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
-			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
-			return
-		}
-
-		token, err := app.AccessTokenRepository.GetToken(tokenUUID)
-		if err != nil && errors.Is(err, db.TokenNotFound) {
-			logger.Debug("[http] Token #%s not found\n", tokenUUID)
 			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
 			return
 		}
