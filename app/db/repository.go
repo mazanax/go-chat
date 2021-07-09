@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"github.com/mazanax/go-chat/app/models"
+	"time"
 )
 
 var (
@@ -10,6 +11,8 @@ var (
 	UsernameAlreadyExists = fmt.Errorf("user with given username already exists")
 	UserNotCreated        = fmt.Errorf("user not created")
 	UserNotFound          = fmt.Errorf("user not found")
+	TokenNotCreated       = fmt.Errorf("token not created")
+	TokenNotFound         = fmt.Errorf("token not found")
 )
 
 type UserRepository interface {
@@ -17,4 +20,11 @@ type UserRepository interface {
 	IsUsernameExists(username string) bool
 	CreateUser(email string, username string, name string, encryptedPassword string) (string, error)
 	GetUser(id string) (models.User, error)
+	FindUserByEmail(email string) (models.User, error)
+}
+
+type AccessTokenRepository interface {
+	CreateToken(user *models.User, randomString string, duration time.Duration) (string, error)
+	GetToken(id string) (models.AccessToken, error)
+	FindTokenByString(token string) (models.AccessToken, error)
 }

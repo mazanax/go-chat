@@ -132,3 +132,96 @@ func (rd *RedisDriver) GetUser(id string) (models.User, error) {
 		UpdatedAt: updatedAt,
 	}, nil
 }
+
+func (rd *RedisDriver) FindUserByEmail(email string) (models.User, error) {
+	if !rd.IsEmailExists(email) {
+		return models.User{}, UserNotFound
+	}
+
+	userId, err := rd.connection.HGet(rd.ctx, "emails", strings.ToLower(email)).Result()
+	switch {
+	case errors.Is(err, redis.Nil) || len(userId) == 0:
+		return models.User{}, UserNotFound
+	case err != nil:
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	return rd.GetUser(userId)
+}
+
+func (rd *RedisDriver) CreateToken(user *models.User, randomString string, duration time.Duration) (string, error) {
+	// start transaction
+	tokenUuid := uuid.NewString()
+	_, err := rd.connection.TxPipelined(rd.ctx, func(pipe redis.Pipeliner) error {
+		_, err := pipe.HSet(
+			rd.ctx,
+			fmt.Sprintf("token:%s", tokenUuid),
+			map[string]interface{}{
+				"id":        tokenUuid,
+				"userId":    user.ID,
+				"token":     randomString,
+				"createdAt": time.Now().Unix(),
+				"expireAt":  time.Now().Add(duration).Unix(),
+			},
+		).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+		_, err = pipe.Expire(rd.ctx, fmt.Sprintf("token:%s", tokenUuid), duration).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+		_, err = pipe.Set(rd.ctx, fmt.Sprintf("token_to_uuid:%s", randomString), tokenUuid, duration).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		_, err = pipe.SAdd(rd.ctx, fmt.Sprintf("user_tokens:%s", user.ID), tokenUuid).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return "", TokenNotCreated
+	}
+
+	return tokenUuid, nil
+}
+
+func (rd *RedisDriver) GetToken(id string) (models.AccessToken, error) {
+	val, err := rd.connection.HGetAll(rd.ctx, fmt.Sprintf("token:%s", id)).Result()
+	switch {
+	case errors.Is(err, redis.Nil) || len(val) == 0:
+		return models.AccessToken{}, TokenNotFound
+	case err != nil:
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	createdAt, _ := strconv.Atoi(val["createdAt"])
+	expireAt, _ := strconv.Atoi(val["expireAt"])
+	return models.AccessToken{
+		UserID:    val["userId"],
+		Token:     val["token"],
+		CreatedAt: createdAt,
+		ExpireAt:  expireAt,
+	}, nil
+}
+
+func (rd *RedisDriver) FindTokenByString(token string) (models.AccessToken, error) {
+	tokenUUID, err := rd.connection.Get(rd.ctx, fmt.Sprintf("token_to_uuid:%s", token)).Result()
+	switch {
+	case errors.Is(err, redis.Nil) || len(tokenUUID) == 0:
+		return models.AccessToken{}, TokenNotFound
+	case err != nil:
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	return rd.GetToken(tokenUUID)
+}

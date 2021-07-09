@@ -27,4 +27,8 @@ var (
 		Message: "Internal server error",
 		Code:    http.StatusInternalServerError,
 	}
+	Unauthorized = ErrorResponse{
+		Message: "Invalid email or password",
+		Code:    http.StatusUnauthorized,
+	}
 )

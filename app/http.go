@@ -6,8 +6,10 @@ import (
 	"github.com/mazanax/go-chat/app/db"
 	"github.com/mazanax/go-chat/app/logger"
 	"github.com/mazanax/go-chat/app/models"
+	"github.com/mazanax/go-chat/app/requests"
 	"gopkg.in/go-playground/validator.v9"
 	"net/http"
+	"time"
 )
 
 func (app *App) IndexHandler() http.HandlerFunc {
@@ -80,7 +82,7 @@ func (app *App) SignUpHandler() http.HandlerFunc {
 			return
 		}
 
-		sendResponse(w, mapUserToJson(user), http.StatusCreated)
+		sendResponse(w, mapUserToJson(user, true), http.StatusCreated)
 	}
 }
 
@@ -88,8 +90,23 @@ func (app *App) UserHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
 
+		tokenString := parseToken(r)
+		accessToken, err := app.AccessTokenRepository.FindTokenByString(tokenString)
+		if err != nil {
+			accessToken = models.AccessToken{}
+		}
+
 		vars := mux.Vars(r)
 		uuid := vars["uuid"]
+		if len(uuid) == 0 && len(accessToken.UserID) > 0 {
+			uuid = accessToken.UserID
+		}
+
+		needEmail := false
+		if uuid == accessToken.UserID {
+			needEmail = true
+		}
+
 		user, err := app.UserRepository.GetUser(uuid)
 
 		if err != nil && errors.Is(err, db.UserNotFound) {
@@ -98,7 +115,51 @@ func (app *App) UserHandler() http.HandlerFunc {
 			return
 		}
 
-		sendResponse(w, mapUserToJson(user), http.StatusOK)
+		sendResponse(w, mapUserToJson(user, needEmail), http.StatusOK)
+	}
+}
+
+func (app *App) LoginHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
+
+		req := models.LoginRequest{}
+		err := parse(r, &req)
+		if err != nil {
+			logger.Error("[http] Cannot parse post body. err=%v\n", err)
+			sendResponse(w, models.ErrorResponse{Code: http.StatusBadRequest}, http.StatusBadRequest)
+			return
+		}
+
+		validationErrors := requests.Validate(req)
+		if len(validationErrors) > 0 {
+			logger.Debug("[http] Bad request: %s %s\n", r.Method, r.URL)
+			sendResponse(w, nil, http.StatusUnauthorized)
+			return
+		}
+
+		user, err := app.UserRepository.FindUserByEmail(req.Email)
+		if err != nil {
+			logger.Debug("[http] User %s not found: %s %s\n", req.Email, r.Method, r.URL)
+			sendResponse(w, models.Unauthorized, http.StatusUnauthorized)
+			return
+		}
+		randomString := randomHexString(64)
+		tokenUUID, err := app.AccessTokenRepository.CreateToken(&user, randomString, time.Duration(48)*time.Hour)
+		if err != nil {
+			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		}
+
+		token, err := app.AccessTokenRepository.GetToken(tokenUUID)
+		if err != nil && errors.Is(err, db.TokenNotFound) {
+			logger.Debug("[http] Token #%s not found\n", tokenUUID)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		}
+
+		sendResponse(w, mapAccessTokenToJson(token), http.StatusOK)
 	}
 }
 
