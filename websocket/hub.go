@@ -1,27 +1,31 @@
-// Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 package websocket
 
-// Hub maintains the set of active clients and broadcasts messages to the
-// clients.
+import (
+	"github.com/mazanax/go-chat/app/db"
+	"github.com/mazanax/go-chat/app/logger"
+)
+
 type Hub struct {
-	// Registered clients.
-	clients map[*Client]bool
+	ticketRepository  db.TicketRepository
+	onlineRepository  db.OnlineRepository
+	messageRepository db.MessageRepository
 
-	// Inbound messages from the clients.
-	broadcast chan []byte
-
-	// Register requests from the clients.
-	register chan *Client
-
-	// Unregister requests from clients.
+	clients    map[*Client]bool
+	broadcast  chan []byte
+	register   chan *Client
 	unregister chan *Client
 }
 
-func NewHub() *Hub {
+func NewHub(
+	ticketRepository db.TicketRepository,
+	onlineRepository db.OnlineRepository,
+	messageRepository db.MessageRepository,
+) *Hub {
 	return &Hub{
+		ticketRepository:  ticketRepository,
+		onlineRepository:  onlineRepository,
+		messageRepository: messageRepository,
+
 		broadcast:  make(chan []byte),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
@@ -33,23 +37,36 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
+			err := h.onlineRepository.CreateUserOnline(client.userID)
+			if err != nil {
+				logger.Fatal("[websocket] Cannot save online user: %v\n", err)
+			}
+
 			h.clients[client] = true
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
-				// here remove user from "online" set
-
 				delete(h.clients, client)
 				close(client.send)
+
+				err := h.onlineRepository.RemoveUserOnline(client.userID)
+				if err != nil {
+					logger.Fatal("[websocket] Cannot remove online user: %v\n", err)
+				}
 			}
 		case message := <-h.broadcast:
+			// here store message
+
 			for client := range h.clients {
 				select {
 				case client.send <- message:
 				default:
-					// here remove user from "online" set
-
 					close(client.send)
 					delete(h.clients, client)
+
+					err := h.onlineRepository.RemoveUserOnline(client.userID)
+					if err != nil {
+						logger.Fatal("[websocket] Cannot remove online user: %v\n", err)
+					}
 				}
 			}
 		}

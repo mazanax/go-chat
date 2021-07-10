@@ -13,6 +13,7 @@ var (
 	UserNotFound          = fmt.Errorf("user not found")
 	TokenNotCreated       = fmt.Errorf("token not created")
 	TokenNotFound         = fmt.Errorf("token not found")
+	TicketNotFound        = fmt.Errorf("ticket not found")
 )
 
 type UserRepository interface {
@@ -21,6 +22,22 @@ type UserRepository interface {
 	CreateUser(email string, username string, name string, encryptedPassword string) (string, error)
 	GetUser(id string) (models.User, error)
 	FindUserByEmail(email string) (models.User, error)
+}
+
+type TicketRepository interface {
+	GenerateTicket(user *models.User) error
+	GetTicket(ticket string) (models.Ticket, error)
+	RemoveTicket(ticket models.Ticket) error
+}
+
+type OnlineRepository interface {
+	GetOnlineUsers() []string
+	CreateUserOnline(userUUID string) error
+	RemoveUserOnline(userUUID string) error
+}
+
+type MessageRepository interface {
+	StoreMessage(userID string, messageType int, text string) error
 }
 
 type AccessTokenRepository interface {
