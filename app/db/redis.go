@@ -29,6 +29,8 @@ func NewRedisDriver(ctx context.Context, addr string, password string, defaultDb
 	}
 }
 
+// region UserRepository
+
 func (rd *RedisDriver) IsEmailExists(email string) bool {
 	val, err := rd.connection.HExists(rd.ctx, "emails", strings.ToLower(email)).Result()
 	switch {
@@ -133,6 +135,27 @@ func (rd *RedisDriver) GetUser(id string) (models.User, error) {
 	}, nil
 }
 
+func (rd *RedisDriver) GetUsers() []models.User {
+	var cursor uint64 = 0
+	users, cursor, err := rd.connection.SScan(rd.ctx, "users", cursor, "", 0).Result()
+	if err != nil {
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	var result []models.User
+	for _, user := range users {
+		model, err := rd.GetUser(user)
+		if err != nil {
+			logger.Error("[GetUsers] Cannot get user %s\n", err)
+			continue
+		}
+
+		result = append(result, model)
+	}
+
+	return result
+}
+
 func (rd *RedisDriver) FindUserByEmail(email string) (models.User, error) {
 	if !rd.IsEmailExists(email) {
 		return models.User{}, UserNotFound
@@ -148,6 +171,10 @@ func (rd *RedisDriver) FindUserByEmail(email string) (models.User, error) {
 
 	return rd.GetUser(userId)
 }
+
+// endregion
+
+// region TokenRepository
 
 func (rd *RedisDriver) CreateToken(user *models.User, randomString string, duration time.Duration) (string, error) {
 	// start transaction
@@ -225,3 +252,45 @@ func (rd *RedisDriver) FindTokenByString(token string) (models.AccessToken, erro
 
 	return rd.GetToken(tokenUUID)
 }
+
+// endregion
+
+// region TicketRepository
+
+func (rd *RedisDriver) CreateTicket(user *models.User, randomString string, duration time.Duration) error {
+	return nil
+}
+
+func (rd *RedisDriver) GetTicket(ticket string) (models.Ticket, error) {
+	return models.Ticket{}, nil
+}
+
+func (rd *RedisDriver) RemoveTicket(ticket models.Ticket) error {
+	return nil
+}
+
+// endregion
+
+// region OnlineRepository
+
+func (rd *RedisDriver) GetOnlineUsers() []string {
+	return []string{}
+}
+
+func (rd *RedisDriver) CreateUserOnline(userUUID string) error {
+	return nil
+}
+
+func (rd *RedisDriver) RemoveUserOnline(userUUID string) error {
+	return nil
+}
+
+// endregion
+
+// region MessageRepository
+
+func (rd *RedisDriver) StoreMessage(userID string, messageType int, text string) error {
+	return nil
+}
+
+// endregion

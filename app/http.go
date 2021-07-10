@@ -40,7 +40,7 @@ func (app *App) UsersHandler() http.HandlerFunc {
 			jsonUsers = append(jsonUsers, mapUserToJson(user, withEmail))
 		}
 
-		sendResponse(w, users, http.StatusOK)
+		sendResponse(w, jsonUsers, http.StatusOK)
 	}
 }
 
@@ -148,11 +148,11 @@ func (app *App) LoginHandler() http.HandlerFunc {
 		user, err := app.UserRepository.FindUserByEmail(req.Email)
 		if err != nil {
 			logger.Debug("[http] User %s not found: %s %s\n", req.Email, r.Method, r.URL)
-			sendResponse(w, models.Unauthorized, http.StatusUnauthorized)
+			sendResponse(w, models.InvalidCredentials, http.StatusUnauthorized)
 			return
 		}
 
-		token, err := tokens.NewToken(app, &user)
+		token, err := tokens.NewToken(app.AccessTokenRepository, &user)
 		if err != nil {
 			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
 			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)

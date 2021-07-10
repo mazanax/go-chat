@@ -25,7 +25,7 @@ func main() {
 
 	app_ := app.New("0.0.0.0:6379", "", 0)
 
-	hub := websocket.NewHub()
+	hub := websocket.NewHub(app_.TicketRepository, app_.OnlineRepository, app_.MessageRepository)
 	go hub.Run()
 	http.HandleFunc("/", app_.Router.ServeHTTP)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {

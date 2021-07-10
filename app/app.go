@@ -10,7 +10,11 @@ type App struct {
 	ctx                   context.Context
 	UserRepository        db.UserRepository
 	AccessTokenRepository db.AccessTokenRepository
-	Router                *mux.Router
+	TicketRepository      db.TicketRepository
+	OnlineRepository      db.OnlineRepository
+	MessageRepository     db.MessageRepository
+
+	Router *mux.Router
 }
 
 func New(redisAddr string, redisPassword string, redisDb int) *App {
@@ -20,6 +24,9 @@ func New(redisAddr string, redisPassword string, redisDb int) *App {
 		ctx:                   ctx,
 		UserRepository:        &redisDriver,
 		AccessTokenRepository: &redisDriver,
+		TicketRepository:      &redisDriver,
+		OnlineRepository:      &redisDriver,
+		MessageRepository:     &redisDriver,
 		Router:                mux.NewRouter(),
 	}
 
@@ -35,4 +42,5 @@ func (app *App) initRoutes() {
 	app.Router.HandleFunc("/api/signup", app.SignUpHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/login", app.LoginHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/history", nil).Methods("GET")
+	app.Router.HandleFunc("/api/ticket", nil).Methods("POST")
 }
