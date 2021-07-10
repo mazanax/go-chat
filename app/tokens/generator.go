@@ -12,12 +12,13 @@ import (
 )
 
 const (
-	DurationInHours = 48
+	TokenDurationHours    = 48
+	TicketDurationSeconds = 45
 )
 
 func NewToken(accessTokenRepository db.AccessTokenRepository, user *models.User) (models.AccessToken, error) {
 	randomString := randomHexString(64)
-	tokenUUID, err := accessTokenRepository.CreateToken(user, randomString, time.Duration(DurationInHours)*time.Hour)
+	tokenUUID, err := accessTokenRepository.CreateToken(user, randomString, time.Duration(TokenDurationHours)*time.Hour)
 	if err != nil {
 		return models.AccessToken{}, err
 	}
@@ -28,6 +29,16 @@ func NewToken(accessTokenRepository db.AccessTokenRepository, user *models.User)
 	}
 
 	return token, nil
+}
+
+func NewTicket(ticketRepository db.TicketRepository, accessToken *models.AccessToken) (models.Ticket, error) {
+	randomString := randomHexString(32)
+	err := ticketRepository.CreateTicket(accessToken, randomString, time.Duration(TicketDurationSeconds)*time.Second)
+	if err != nil {
+		return models.Ticket{}, err
+	}
+
+	return ticketRepository.GetTicket(randomString)
 }
 
 func randomHexString(length int) string {

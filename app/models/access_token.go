@@ -1,6 +1,7 @@
 package models
 
 type AccessToken struct {
+	ID        string
 	UserID    string
 	Token     string
 	CreatedAt int

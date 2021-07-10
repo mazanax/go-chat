@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mazanax/go-chat/app/logger"
-	"github.com/mazanax/go-chat/app/models"
 	"net/http"
 )
 
@@ -43,29 +42,5 @@ func sendResponse(w http.ResponseWriter, data interface{}, status int) {
 	err := json.NewEncoder(w).Encode(data)
 	if err != nil {
 		logger.Error("Cannot format json. err=%v\n", err)
-	}
-}
-
-func mapUserToJson(user models.User, withEmail bool) models.JsonUser {
-	email := user.Email
-	if !withEmail {
-		email = ""
-	}
-
-	return models.JsonUser{
-		ID:        user.ID,
-		Name:      user.Name,
-		Email:     email,
-		Username:  user.Username,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-	}
-}
-
-func mapAccessTokenToJson(token models.AccessToken) models.JsonAccessToken {
-	return models.JsonAccessToken{
-		Token:     token.Token,
-		CreatedAt: token.CreatedAt,
-		ExpireAt:  token.ExpireAt,
 	}
 }

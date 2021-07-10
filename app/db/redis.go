@@ -234,6 +234,7 @@ func (rd *RedisDriver) GetToken(id string) (models.AccessToken, error) {
 	createdAt, _ := strconv.Atoi(val["createdAt"])
 	expireAt, _ := strconv.Atoi(val["expireAt"])
 	return models.AccessToken{
+		ID:        val["id"],
 		UserID:    val["userId"],
 		Token:     val["token"],
 		CreatedAt: createdAt,
@@ -257,16 +258,51 @@ func (rd *RedisDriver) FindTokenByString(token string) (models.AccessToken, erro
 
 // region TicketRepository
 
-func (rd *RedisDriver) CreateTicket(user *models.User, randomString string, duration time.Duration) error {
+func (rd *RedisDriver) CreateTicket(accessToken *models.AccessToken, randomString string, duration time.Duration) error {
+	_, err := rd.connection.HSet(
+		rd.ctx,
+		fmt.Sprintf("ticket:%s", randomString),
+		map[string]interface{}{
+			"userId":    accessToken.UserID,
+			"tokenId":   accessToken.ID,
+			"ticket":    randomString,
+			"createdAt": time.Now().Unix(),
+			"expireAt":  time.Now().Add(duration).Unix(),
+		},
+	).Result()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func (rd *RedisDriver) GetTicket(ticket string) (models.Ticket, error) {
-	return models.Ticket{}, nil
+	val, err := rd.connection.HGetAll(rd.ctx, fmt.Sprintf("ticket:%s", ticket)).Result()
+	switch {
+	case errors.Is(err, redis.Nil) || len(val) == 0:
+		return models.Ticket{}, TicketNotFound
+	case err != nil:
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	createdAt, _ := strconv.Atoi(val["createdAt"])
+	expireAt, _ := strconv.Atoi(val["expireAt"])
+	return models.Ticket{
+		UserID:    val["userId"],
+		TokenID:   val["tokenId"],
+		Ticket:    val["ticket"],
+		CreatedAt: createdAt,
+		ExpireAt:  expireAt,
+	}, nil
 }
 
 func (rd *RedisDriver) RemoveTicket(ticket models.Ticket) error {
-	return nil
+	_, err := rd.connection.Del(rd.ctx, fmt.Sprintf("ticket:%s", ticket.Ticket)).Result()
+	if err != nil && errors.Is(err, redis.Nil) {
+		return nil
+	}
+
+	return err
 }
 
 // endregion

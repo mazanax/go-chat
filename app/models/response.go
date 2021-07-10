@@ -19,6 +19,10 @@ var (
 		Errors:  map[string]string{"username": "User already exists"},
 		Code:    http.StatusBadRequest,
 	}
+	Forbidden = ErrorResponse{
+		Message: "Access denied",
+		Code:    http.StatusForbidden,
+	}
 	UserNotFound = ErrorResponse{
 		Message: "User not found",
 		Code:    http.StatusNotFound,

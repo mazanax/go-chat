@@ -11,6 +11,8 @@ import (
 	"net/http"
 )
 
+// region HttpHandlers
+
 func (app *App) IndexHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
@@ -28,10 +30,7 @@ func (app *App) UsersHandler() http.HandlerFunc {
 		}
 
 		tokenString := parseToken(r)
-		accessToken, err := app.AccessTokenRepository.FindTokenByString(tokenString)
-		if err != nil {
-			accessToken = models.AccessToken{}
-		}
+		accessToken, _ := app.AccessTokenRepository.FindTokenByString(tokenString)
 
 		users := app.UserRepository.GetUsers()
 		var jsonUsers []models.JsonUser
@@ -163,4 +162,27 @@ func (app *App) LoginHandler() http.HandlerFunc {
 	}
 }
 
-func ServeSignUp() {}
+func (app *App) TicketHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
+		if err := checkAuthorization(r); errors.Is(err, Unauthorized) {
+			logger.Debug("[http] Unauthorized\n")
+			sendResponse(w, models.Unauthorized, http.StatusUnauthorized)
+			return
+		}
+
+		tokenString := parseToken(r)
+		accessToken, _ := app.AccessTokenRepository.FindTokenByString(tokenString)
+
+		ticket, err := tokens.NewTicket(app.TicketRepository, &accessToken)
+		if err != nil {
+			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		}
+
+		sendResponse(w, mapTicketToJson(ticket), http.StatusCreated)
+	}
+}
+
+// endregion

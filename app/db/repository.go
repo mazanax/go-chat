@@ -26,7 +26,7 @@ type UserRepository interface {
 }
 
 type TicketRepository interface {
-	CreateTicket(user *models.User, randomString string, duration time.Duration) error
+	CreateTicket(token *models.AccessToken, randomString string, duration time.Duration) error
 	GetTicket(ticket string) (models.Ticket, error)
 	RemoveTicket(ticket models.Ticket) error
 }
