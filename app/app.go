@@ -42,5 +42,5 @@ func (app *App) initRoutes() {
 	app.Router.HandleFunc("/api/signup", app.SignUpHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/login", app.LoginHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/ticket", app.TicketHandler()).Methods("POST")
-	app.Router.HandleFunc("/api/history", nil).Methods("GET")
+	app.Router.HandleFunc("/api/history", app.HistoryHandler()).Methods("GET")
 }

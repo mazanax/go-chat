@@ -14,6 +14,7 @@ var (
 	TokenNotCreated       = fmt.Errorf("token not created")
 	TokenNotFound         = fmt.Errorf("token not found")
 	TicketNotFound        = fmt.Errorf("ticket not found")
+	MessageNotFound       = fmt.Errorf("message not found")
 )
 
 type UserRepository interface {
@@ -38,7 +39,8 @@ type OnlineRepository interface {
 }
 
 type MessageRepository interface {
-	StoreMessage(userID string, messageType int, text string) error
+	StoreMessage(userID string, messageType int, text string) (string, error)
+	GetMessages(count int) []models.Message
 }
 
 type AccessTokenRepository interface {

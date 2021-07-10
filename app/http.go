@@ -9,6 +9,7 @@ import (
 	"github.com/mazanax/go-chat/app/requests"
 	"github.com/mazanax/go-chat/app/tokens"
 	"net/http"
+	"path/filepath"
 )
 
 // region HttpHandlers
@@ -16,7 +17,8 @@ import (
 func (app *App) IndexHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
-		http.ServeFile(w, r, "../html/index.html")
+		// path to file should be from binary location
+		http.ServeFile(w, r, filepath.Join("html", "index.html"))
 	}
 }
 
@@ -182,6 +184,21 @@ func (app *App) TicketHandler() http.HandlerFunc {
 		}
 
 		sendResponse(w, mapTicketToJson(ticket), http.StatusCreated)
+	}
+}
+
+func (app *App) HistoryHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
+
+		var jsonMessages []models.JsonMessage
+		messages := app.MessageRepository.GetMessages(100)
+
+		for _, message := range messages {
+			jsonMessages = append(jsonMessages, mapMessageToJson(message))
+		}
+
+		sendResponse(w, jsonMessages, http.StatusOK)
 	}
 }
 

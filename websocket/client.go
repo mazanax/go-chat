@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/mazanax/go-chat/app/db"
 	"github.com/mazanax/go-chat/app/logger"
+	"github.com/mazanax/go-chat/app/models"
 	"net/http"
 	"time"
 
@@ -60,6 +61,12 @@ func (c *Client) readPump() {
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		logger.Debug("-> Got new message from %s: %s\n", c.conn.RemoteAddr().String(), string(message))
+
+		_, err = c.hub.messageRepository.StoreMessage(c.userID, models.RegularMessage, string(message))
+		if err != nil {
+			logger.Error("[websocket] Cannot save message from %s: %s\n", c.userID, err)
+			continue
+		}
 		c.hub.broadcast <- message
 	}
 }
@@ -120,10 +127,12 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	ticket, err := hub.ticketRepository.GetTicket(ticketString)
 	switch {
 	case errors.Is(err, db.TicketNotFound):
-		logger.Error("[websocket] Ticket %s not found.\n", ticket)
+		logger.Error("[websocket] Ticket %s not found.\n", ticketString)
+		_ = conn.Close()
 		return
 	case err != nil:
 		logger.Error(err.Error())
+		_ = conn.Close()
 		return
 	}
 

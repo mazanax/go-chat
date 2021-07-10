@@ -33,3 +33,13 @@ func mapTicketToJson(ticket models.Ticket) models.JsonTicket {
 		ExpireAt:  ticket.ExpireAt,
 	}
 }
+
+func mapMessageToJson(message models.Message) models.JsonMessage {
+	return models.JsonMessage{
+		ID:        message.ID,
+		UserID:    message.UserID,
+		Type:      message.Type,
+		CreatedAt: message.CreatedAt,
+		Text:      message.Text,
+	}
+}

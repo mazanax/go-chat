@@ -325,8 +325,79 @@ func (rd *RedisDriver) RemoveUserOnline(userUUID string) error {
 
 // region MessageRepository
 
-func (rd *RedisDriver) StoreMessage(userID string, messageType int, text string) error {
-	return nil
+func (rd *RedisDriver) StoreMessage(userID string, messageType int, text string) (string, error) {
+	messageUUID := uuid.NewString()
+	_, err := rd.connection.TxPipelined(rd.ctx, func(pipe redis.Pipeliner) error {
+		_, err := pipe.HSet(
+			rd.ctx,
+			fmt.Sprintf("message:%s", messageUUID),
+			map[string]interface{}{
+				"id":        messageUUID,
+				"userId":    userID,
+				"createdAt": time.Now().Unix(),
+				"type":      messageType,
+				"text":      text,
+			},
+		).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		_, err = pipe.LPush(rd.ctx, "messages", messageUUID).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return messageUUID, nil
+}
+
+func (rd *RedisDriver) getMessage(messageUUID string) (models.Message, error) {
+	val, err := rd.connection.HGetAll(rd.ctx, fmt.Sprintf("message:%s", messageUUID)).Result()
+	switch {
+	case errors.Is(err, redis.Nil) || len(val) == 0:
+		return models.Message{}, MessageNotFound
+	case err != nil:
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	createdAt, _ := strconv.Atoi(val["createdAt"])
+	messageType, _ := strconv.Atoi(val["type"])
+	return models.Message{
+		ID:        val["id"],
+		UserID:    val["userId"],
+		CreatedAt: createdAt,
+		Type:      messageType,
+		Text:      val["text"],
+	}, nil
+}
+
+func (rd *RedisDriver) GetMessages(limit int) []models.Message {
+	messages, err := rd.connection.LRange(rd.ctx, "messages", 0, int64(limit)).Result()
+	if err != nil {
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	var result []models.Message
+	for _, message := range messages {
+		model, err := rd.getMessage(message)
+		if err != nil {
+			logger.Error("[GetMessages] Cannot get message %s\n", err)
+			continue
+		}
+
+		result = append(result, model)
+	}
+
+	return result
 }
 
 // endregion

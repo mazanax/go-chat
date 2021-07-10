@@ -54,8 +54,6 @@ func (h *Hub) Run() {
 				}
 			}
 		case message := <-h.broadcast:
-			// here store message
-
 			for client := range h.clients {
 				select {
 				case client.send <- message:
