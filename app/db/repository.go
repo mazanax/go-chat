@@ -21,6 +21,7 @@ type UserRepository interface {
 	IsUsernameExists(username string) bool
 	CreateUser(email string, username string, name string, encryptedPassword string) (string, error)
 	GetUser(id string) (models.User, error)
+	GetUsers() []models.User
 	FindUserByEmail(email string) (models.User, error)
 }
 

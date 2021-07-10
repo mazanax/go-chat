@@ -21,13 +21,26 @@ func (app *App) IndexHandler() http.HandlerFunc {
 func (app *App) UsersHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
-		if r.URL.Path != "/users" {
-			logger.Debug("[http] Not found: %s\n", r.URL)
-			http.Error(w, "Not found", http.StatusNotFound)
+		if err := checkAuthorization(r); errors.Is(err, Unauthorized) {
+			logger.Debug("[http] Unauthorized\n")
+			sendResponse(w, models.Unauthorized, http.StatusUnauthorized)
 			return
 		}
 
-		// here return connected users
+		tokenString := parseToken(r)
+		accessToken, err := app.AccessTokenRepository.FindTokenByString(tokenString)
+		if err != nil {
+			accessToken = models.AccessToken{}
+		}
+
+		users := app.UserRepository.GetUsers()
+		var jsonUsers []models.JsonUser
+		for _, user := range users {
+			withEmail := accessToken.UserID == user.ID
+			jsonUsers = append(jsonUsers, mapUserToJson(user, withEmail))
+		}
+
+		sendResponse(w, users, http.StatusOK)
 	}
 }
 
@@ -79,6 +92,11 @@ func (app *App) SignUpHandler() http.HandlerFunc {
 func (app *App) UserHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
+		if err := checkAuthorization(r); errors.Is(err, Unauthorized) {
+			logger.Debug("[http] Unauthorized\n")
+			sendResponse(w, models.Unauthorized, http.StatusUnauthorized)
+			return
+		}
 
 		tokenString := parseToken(r)
 		accessToken, err := app.AccessTokenRepository.FindTokenByString(tokenString)

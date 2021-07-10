@@ -2,10 +2,13 @@ package app
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/mazanax/go-chat/app/logger"
 	"github.com/mazanax/go-chat/app/models"
 	"net/http"
 )
+
+var Unauthorized = fmt.Errorf("unathorized")
 
 func parse(r *http.Request, data interface{}) error {
 	return json.NewDecoder(r.Body).Decode(data)
@@ -18,6 +21,15 @@ func parseToken(r *http.Request) string {
 	}
 
 	return tokenString
+}
+
+func checkAuthorization(r *http.Request) error {
+	token := parseToken(r)
+	if len(token) == 0 {
+		return Unauthorized
+	}
+
+	return nil
 }
 
 func sendResponse(w http.ResponseWriter, data interface{}, status int) {
