@@ -348,7 +348,7 @@ func (rd *RedisDriver) RemoveTicket(ticket models.Ticket) error {
 
 func (rd *RedisDriver) GetOnlineUsers() []string {
 	var cursor uint64 = 0
-	users, cursor, err := rd.connection.SScan(rd.ctx, "online", cursor, "", 0).Result()
+	users, cursor, err := rd.connection.SScan(rd.ctx, "online", cursor, "", 100).Result()
 	if err != nil {
 		logger.Fatal("Redis connection failed: %s", err.Error())
 	}
