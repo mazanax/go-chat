@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"github.com/mazanax/go-chat/app"
 	"github.com/mazanax/go-chat/app/logger"
+	"github.com/mazanax/go-chat/app/models"
 	"github.com/mazanax/go-chat/websocket"
+	"github.com/rs/cors"
 	"net/http"
 	"os"
 )
@@ -23,16 +25,24 @@ func main() {
 	}
 	logger.Debug("Starting listen to %s:%d...\n", *host, *port)
 
-	app_ := app.New("0.0.0.0:6379", "", 0)
+	notifications := make(chan *models.Message)
 
-	hub := websocket.NewHub(app_.TicketRepository, app_.OnlineRepository, app_.MessageRepository)
+	app_ := app.New("0.0.0.0:6379", "", 0, notifications)
+	hub := websocket.NewHub(app_.TicketRepository, app_.OnlineRepository, app_.MessageRepository, notifications)
 	go hub.Run()
-	http.HandleFunc("/", app_.Router.ServeHTTP)
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+	app_.Router.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug("[http] Incoming Websocket connection\n")
 		websocket.ServeWs(hub, w, r)
 	})
+	http.HandleFunc("/", app_.Router.ServeHTTP)
 
-	err := http.ListenAndServe(fmt.Sprintf("%s:%d", *host, *port), nil)
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: true,
+	})
+
+	err := http.ListenAndServe(fmt.Sprintf("%s:%d", *host, *port), c.Handler(app_.Router))
 	if err != nil {
 		logger.Error("ListenAndServe: %s\n", err.Error())
 		os.Exit(2)

@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/mazanax/go-chat/app/db"
 	"github.com/mazanax/go-chat/app/logger"
@@ -10,6 +11,7 @@ import (
 	"github.com/mazanax/go-chat/app/tokens"
 	"net/http"
 	"path/filepath"
+	"time"
 )
 
 // region HttpHandlers
@@ -45,6 +47,20 @@ func (app *App) UsersHandler() http.HandlerFunc {
 	}
 }
 
+func (app *App) OnlineHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
+		if err := checkAuthorization(r); errors.Is(err, Unauthorized) {
+			logger.Debug("[http] Unauthorized\n")
+			sendResponse(w, models.Unauthorized, http.StatusUnauthorized)
+			return
+		}
+
+		online := app.OnlineRepository.GetOnlineUsers()
+		sendResponse(w, online, http.StatusOK)
+	}
+}
+
 func (app *App) SignUpHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
@@ -63,7 +79,7 @@ func (app *App) SignUpHandler() http.HandlerFunc {
 			return
 		}
 
-		uuid, err := app.UserRepository.CreateUser(req.Email, req.Username, req.Name, req.Password)
+		uuid_, err := app.UserRepository.CreateUser(req.Email, req.Username, req.Name, req.Password)
 		switch {
 		case errors.Is(err, db.EmailAlreadyExists):
 			logger.Debug("[http] User with email %s already exists: %s %s\n", req.Email, r.Method, r.URL)
@@ -79,13 +95,19 @@ func (app *App) SignUpHandler() http.HandlerFunc {
 			return
 		}
 
-		user, err := app.UserRepository.GetUser(uuid)
+		user, err := app.UserRepository.GetUser(uuid_)
 		if err != nil && errors.Is(err, db.UserNotFound) {
-			logger.Debug("[http] User #%s not found\n", uuid)
+			logger.Debug("[http] User #%s not found\n", uuid_)
 			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
 			return
 		}
 
+		app.notifications <- &models.Message{
+			ID:        uuid.NewString(),
+			Type:      models.UserRegistered,
+			Data:      mapUserToJson(user, false),
+			CreatedAt: int(time.Now().Unix()),
+		}
 		sendResponse(w, mapUserToJson(user, true), http.StatusCreated)
 	}
 }
@@ -106,19 +128,19 @@ func (app *App) UserHandler() http.HandlerFunc {
 		}
 
 		vars := mux.Vars(r)
-		uuid := vars["uuid"]
-		if len(uuid) == 0 && len(accessToken.UserID) > 0 {
-			uuid = accessToken.UserID
+		uuid_ := vars["uuid"]
+		if len(uuid_) == 0 && len(accessToken.UserID) > 0 {
+			uuid_ = accessToken.UserID
 		}
 
 		needEmail := false
-		if uuid == accessToken.UserID {
+		if uuid_ == accessToken.UserID {
 			needEmail = true
 		}
 
-		user, err := app.UserRepository.GetUser(uuid)
+		user, err := app.UserRepository.GetUser(uuid_)
 		if err != nil && errors.Is(err, db.UserNotFound) {
-			logger.Debug("[http] User #%s not found\n", uuid)
+			logger.Debug("[http] User #%s not found\n", uuid_)
 			sendResponse(w, models.UserNotFound, http.StatusNotFound)
 			return
 		}
@@ -149,6 +171,12 @@ func (app *App) LoginHandler() http.HandlerFunc {
 		user, err := app.UserRepository.FindUserByEmail(req.Email)
 		if err != nil {
 			logger.Debug("[http] User %s not found: %s %s\n", req.Email, r.Method, r.URL)
+			sendResponse(w, models.InvalidCredentials, http.StatusUnauthorized)
+			return
+		}
+
+		if user.Password != req.Password {
+			logger.Debug("[http] Invalid password %s: %s %s\n", req.Email, r.Method, r.URL)
 			sendResponse(w, models.InvalidCredentials, http.StatusUnauthorized)
 			return
 		}

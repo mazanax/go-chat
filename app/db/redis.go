@@ -259,21 +259,32 @@ func (rd *RedisDriver) FindTokenByString(token string) (models.AccessToken, erro
 // region TicketRepository
 
 func (rd *RedisDriver) CreateTicket(accessToken *models.AccessToken, randomString string, duration time.Duration) error {
-	_, err := rd.connection.HSet(
-		rd.ctx,
-		fmt.Sprintf("ticket:%s", randomString),
-		map[string]interface{}{
-			"userId":    accessToken.UserID,
-			"tokenId":   accessToken.ID,
-			"ticket":    randomString,
-			"createdAt": time.Now().Unix(),
-			"expireAt":  time.Now().Add(duration).Unix(),
-		},
-	).Result()
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := rd.connection.TxPipelined(rd.ctx, func(pipe redis.Pipeliner) error {
+		_, err := pipe.HSet(
+			rd.ctx,
+			fmt.Sprintf("ticket:%s", randomString),
+			map[string]interface{}{
+				"userId":    accessToken.UserID,
+				"tokenId":   accessToken.ID,
+				"ticket":    randomString,
+				"createdAt": time.Now().Unix(),
+				"expireAt":  time.Now().Add(duration).Unix(),
+			},
+		).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+		_, err = pipe.Expire(rd.ctx, fmt.Sprintf("ticket:%s", randomString), duration).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		return nil
+	})
+
+	return err
 }
 
 func (rd *RedisDriver) GetTicket(ticket string) (models.Ticket, error) {
@@ -310,14 +321,30 @@ func (rd *RedisDriver) RemoveTicket(ticket models.Ticket) error {
 // region OnlineRepository
 
 func (rd *RedisDriver) GetOnlineUsers() []string {
-	return []string{}
+	var cursor uint64 = 0
+	users, cursor, err := rd.connection.SScan(rd.ctx, "online", cursor, "", 0).Result()
+	if err != nil {
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	return users
 }
 
 func (rd *RedisDriver) CreateUserOnline(userUUID string) error {
+	_, err := rd.connection.SAdd(rd.ctx, "online", userUUID).Result()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (rd *RedisDriver) RemoveUserOnline(userUUID string) error {
+	_, err := rd.connection.SRem(rd.ctx, "online", userUUID).Result()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -325,8 +352,7 @@ func (rd *RedisDriver) RemoveUserOnline(userUUID string) error {
 
 // region MessageRepository
 
-func (rd *RedisDriver) StoreMessage(userID string, messageType int, text string) (string, error) {
-	messageUUID := uuid.NewString()
+func (rd *RedisDriver) StoreMessage(userID string, messageType int, messageUUID string, text string) (string, error) {
 	_, err := rd.connection.TxPipelined(rd.ctx, func(pipe redis.Pipeliner) error {
 		_, err := pipe.HSet(
 			rd.ctx,
@@ -360,7 +386,7 @@ func (rd *RedisDriver) StoreMessage(userID string, messageType int, text string)
 	return messageUUID, nil
 }
 
-func (rd *RedisDriver) getMessage(messageUUID string) (models.Message, error) {
+func (rd *RedisDriver) GetMessage(messageUUID string) (models.Message, error) {
 	val, err := rd.connection.HGetAll(rd.ctx, fmt.Sprintf("message:%s", messageUUID)).Result()
 	switch {
 	case errors.Is(err, redis.Nil) || len(val) == 0:
@@ -388,7 +414,7 @@ func (rd *RedisDriver) GetMessages(limit int) []models.Message {
 
 	var result []models.Message
 	for _, message := range messages {
-		model, err := rd.getMessage(message)
+		model, err := rd.GetMessage(message)
 		if err != nil {
 			logger.Error("[GetMessages] Cannot get message %s\n", err)
 			continue

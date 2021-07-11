@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gorilla/mux"
 	"github.com/mazanax/go-chat/app/db"
+	"github.com/mazanax/go-chat/app/models"
 )
 
 type App struct {
@@ -15,9 +16,11 @@ type App struct {
 	MessageRepository     db.MessageRepository
 
 	Router *mux.Router
+
+	notifications chan *models.Message
 }
 
-func New(redisAddr string, redisPassword string, redisDb int) *App {
+func New(redisAddr string, redisPassword string, redisDb int, notifications chan *models.Message) *App {
 	ctx := context.Background()
 	redisDriver := db.NewRedisDriver(ctx, redisAddr, redisPassword, redisDb)
 	app := &App{
@@ -28,6 +31,7 @@ func New(redisAddr string, redisPassword string, redisDb int) *App {
 		OnlineRepository:      &redisDriver,
 		MessageRepository:     &redisDriver,
 		Router:                mux.NewRouter(),
+		notifications:         notifications,
 	}
 
 	app.initRoutes()
@@ -39,6 +43,7 @@ func (app *App) initRoutes() {
 	app.Router.HandleFunc("/api/user", app.UserHandler()).Methods("GET")
 	app.Router.HandleFunc("/api/user/{uuid}", app.UserHandler()).Methods("GET")
 	app.Router.HandleFunc("/api/users", app.UsersHandler()).Methods("GET")
+	app.Router.HandleFunc("/api/online", app.OnlineHandler()).Methods("GET")
 	app.Router.HandleFunc("/api/signup", app.SignUpHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/login", app.LoginHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/ticket", app.TicketHandler()).Methods("POST")
