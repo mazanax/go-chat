@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	slugRegex = regexp.MustCompile(`^\w+$`)
+	slugRegex = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
 )
 
 func Validate(request interface{}) []string {
