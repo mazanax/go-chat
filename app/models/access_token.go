@@ -27,3 +27,19 @@ type JsonTicket struct {
 	CreatedAt int    `json:"created_at"`
 	ExpireAt  int    `json:"expire_at"`
 }
+
+type PasswordResetToken struct {
+	ID        string
+	UserID    string
+	Token     string
+	CreatedAt int
+	ExpireAt  int
+}
+
+type PasswordResetRequest struct {
+	Email string `validate:"required,email"`
+}
+
+type TokenByCodeRequest struct {
+	Code string `validate:"required"`
+}

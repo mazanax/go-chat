@@ -214,6 +214,95 @@ func (app *App) LogoutHandler() http.HandlerFunc {
 	}
 }
 
+func (app *App) ResetPasswordHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
+
+		req := models.PasswordResetRequest{}
+		err := parse(r, &req)
+		if err != nil {
+			logger.Error("[http] Cannot parse post body. err=%v\n", err)
+			sendResponse(w, models.ErrorResponse{Code: http.StatusBadRequest}, http.StatusBadRequest)
+			return
+		}
+
+		validationErrors := requests.Validate(req)
+		if len(validationErrors) > 0 {
+			logger.Debug("[http] Bad request: %s %s\n", r.Method, r.URL)
+			sendResponse(w, nil, http.StatusBadRequest)
+			return
+		}
+
+		user, err := app.UserRepository.FindUserByEmail(req.Email)
+		if err != nil {
+			logger.Debug("[http] User %s not found: %s %s\n", req.Email, r.Method, r.URL)
+			sendResponse(w, nil, http.StatusOK)
+			return
+		}
+
+		token, err := tokens.NewPasswordResetToken(app.PasswordResetTokenRepository, &user)
+		if err != nil {
+			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		}
+
+		logger.Debug("[password reset] Code: %s\n", token.Token)
+		// here send e-mail
+
+		sendResponse(w, nil, http.StatusOK)
+	}
+}
+
+func (app *App) TokenHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
+
+		req := models.TokenByCodeRequest{}
+		err := parse(r, &req)
+		if err != nil {
+			logger.Error("[http] Cannot parse post body. err=%v\n", err)
+			sendResponse(w, models.ErrorResponse{Code: http.StatusBadRequest}, http.StatusBadRequest)
+			return
+		}
+
+		validationErrors := requests.Validate(req)
+		if len(validationErrors) > 0 {
+			logger.Debug("[http] Forbidden: %s %s\n", r.Method, r.URL)
+			sendResponse(w, nil, http.StatusForbidden)
+			return
+		}
+
+		token, err := app.PasswordResetTokenRepository.FindTokenByString(req.Code)
+		switch {
+		case errors.Is(err, db.TokenNotFound):
+			logger.Debug("[http] Password reset token %s not found: %s %s\n", req.Code, r.Method, r.URL)
+			sendResponse(w, nil, http.StatusForbidden)
+			return
+		case err != nil:
+			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		}
+
+		user, err := app.UserRepository.GetUser(token.UserID)
+		if err != nil {
+			logger.Debug("[http] User %s not found: %s %s\n", req.Code, r.Method, r.URL)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		}
+
+		accessToken, err := tokens.NewToken(app.AccessTokenRepository, &user)
+		if err != nil {
+			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		}
+
+		sendResponse(w, mapAccessTokenToJson(accessToken), http.StatusCreated)
+	}
+}
+
 func (app *App) TicketHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)

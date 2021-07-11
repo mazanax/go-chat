@@ -66,12 +66,12 @@ func (c *Client) readPump() {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				logger.Fatal("error: %v", err)
+				logger.Fatal("[websocket] Error: %v", err)
 			}
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		logger.Debug("-> Got new message from %s: %s\n", c.conn.RemoteAddr().String(), string(message))
+		logger.Debug("[websocket] Got new message from %s: %s\n", c.conn.RemoteAddr().String(), string(message))
 
 		msg := models.WebsocketMessage{}
 		if err := json.Unmarshal(message, &msg); err != nil {
@@ -95,7 +95,7 @@ func (c *Client) readPump() {
 }
 
 func (c *Client) writePump() {
-	logger.Debug("-> New client: %s\n", c.conn.RemoteAddr().String())
+	logger.Debug("[websocket] New client: %s\n", c.conn.RemoteAddr().String())
 	ticker := time.NewTicker(pingPeriod)
 
 	c.hub.notifications <- &models.Message{
@@ -109,7 +109,7 @@ func (c *Client) writePump() {
 		ticker.Stop()
 
 		if err := c.conn.Close(); err != nil {
-			logger.Debug("User %s closed connection: %s\n", c.conn.RemoteAddr().String(), err.Error())
+			logger.Debug("[websocket] User %s closed connection: %s\n", c.conn.RemoteAddr().String(), err.Error())
 		}
 	}()
 	for {

@@ -8,12 +8,13 @@ import (
 )
 
 type App struct {
-	ctx                   context.Context
-	UserRepository        db.UserRepository
-	AccessTokenRepository db.AccessTokenRepository
-	TicketRepository      db.TicketRepository
-	OnlineRepository      db.OnlineRepository
-	MessageRepository     db.MessageRepository
+	ctx                          context.Context
+	UserRepository               db.UserRepository
+	AccessTokenRepository        db.AccessTokenRepository
+	TicketRepository             db.TicketRepository
+	OnlineRepository             db.OnlineRepository
+	MessageRepository            db.MessageRepository
+	PasswordResetTokenRepository db.ResetPasswordTokenRepository
 
 	Router *mux.Router
 
@@ -40,13 +41,16 @@ func New(redisAddr string, redisPassword string, redisDb int, notifications chan
 
 func (app *App) initRoutes() {
 	app.Router.HandleFunc("/", app.IndexHandler()).Methods("GET")
+	app.Router.HandleFunc("/api/token", app.TokenHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/user", app.UserHandler()).Methods("GET")
+	app.Router.HandleFunc("/api/user", app.UserHandler()).Methods("PATCH")
 	app.Router.HandleFunc("/api/user/{uuid}", app.UserHandler()).Methods("GET")
 	app.Router.HandleFunc("/api/users", app.UsersHandler()).Methods("GET")
 	app.Router.HandleFunc("/api/online", app.OnlineHandler()).Methods("GET")
 	app.Router.HandleFunc("/api/signup", app.SignUpHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/login", app.LoginHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/logout", app.LogoutHandler()).Methods("POST")
+	app.Router.HandleFunc("/api/reset-password", app.ResetPasswordHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/ticket", app.TicketHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/history", app.HistoryHandler()).Methods("GET")
 }

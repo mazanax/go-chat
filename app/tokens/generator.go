@@ -31,6 +31,21 @@ func NewToken(accessTokenRepository db.AccessTokenRepository, user *models.User)
 	return token, nil
 }
 
+func NewPasswordResetToken(repository db.ResetPasswordTokenRepository, user *models.User) (models.PasswordResetToken, error) {
+	randomString := randomHexString(64)
+	tokenUUID, err := repository.CreateToken(user, randomString, time.Duration(TokenDurationHours)*time.Hour)
+	if err != nil {
+		return models.PasswordResetToken{}, err
+	}
+
+	token, err := repository.GetToken(tokenUUID)
+	if err != nil && errors.Is(err, db.TokenNotFound) {
+		return token, err
+	}
+
+	return token, nil
+}
+
 func NewTicket(ticketRepository db.TicketRepository, accessToken *models.AccessToken) (models.Ticket, error) {
 	randomString := randomHexString(32)
 	err := ticketRepository.CreateTicket(accessToken, randomString, time.Duration(TicketDurationSeconds)*time.Second)
