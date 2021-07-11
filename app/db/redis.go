@@ -137,7 +137,7 @@ func (rd *RedisDriver) GetUser(id string) (models.User, error) {
 
 func (rd *RedisDriver) GetUsers() []models.User {
 	var cursor uint64 = 0
-	users, cursor, err := rd.connection.SScan(rd.ctx, "users", cursor, "", 0).Result()
+	users, cursor, err := rd.connection.SScan(rd.ctx, "users", cursor, "", 100).Result()
 	if err != nil {
 		logger.Fatal("Redis connection failed: %s", err.Error())
 	}
@@ -146,7 +146,7 @@ func (rd *RedisDriver) GetUsers() []models.User {
 	for _, user := range users {
 		model, err := rd.GetUser(user)
 		if err != nil {
-			logger.Error("[GetUsers] Cannot get user %s\n", err)
+			logger.Error("[GetUsers] Cannot get user #%s %s\n", user, err)
 			continue
 		}
 
