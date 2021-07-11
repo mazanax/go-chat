@@ -254,6 +254,32 @@ func (rd *RedisDriver) FindTokenByString(token string) (models.AccessToken, erro
 	return rd.GetToken(tokenUUID)
 }
 
+func (rd *RedisDriver) RemoveToken(token models.AccessToken) error {
+	_, err := rd.connection.TxPipelined(rd.ctx, func(pipe redis.Pipeliner) error {
+		_, err := pipe.Del(rd.ctx, fmt.Sprintf("token_to_uuid:%s", token.Token)).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		_, err = pipe.Del(rd.ctx, fmt.Sprintf("token:%s", token.ID)).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		_, err = pipe.SRem(rd.ctx, fmt.Sprintf("user_tokens:%s", token.UserID), token.ID).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		return nil
+	})
+
+	return err
+}
+
 // endregion
 
 // region TicketRepository

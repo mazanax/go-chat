@@ -48,4 +48,5 @@ type AccessTokenRepository interface {
 	CreateToken(user *models.User, randomString string, duration time.Duration) (string, error)
 	GetToken(id string) (models.AccessToken, error)
 	FindTokenByString(token string) (models.AccessToken, error)
+	RemoveToken(token models.AccessToken) error
 }

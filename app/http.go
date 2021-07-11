@@ -192,6 +192,28 @@ func (app *App) LoginHandler() http.HandlerFunc {
 	}
 }
 
+func (app *App) LogoutHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
+		if err := checkAuthorization(r); errors.Is(err, Unauthorized) {
+			logger.Debug("[http] Unauthorized\n")
+			sendResponse(w, models.Unauthorized, http.StatusUnauthorized)
+			return
+		}
+
+		tokenString := parseToken(r)
+		accessToken, _ := app.AccessTokenRepository.FindTokenByString(tokenString)
+
+		err := app.AccessTokenRepository.RemoveToken(accessToken)
+		if err != nil {
+			logger.Debug("[http] Cannot remove access token: %s\n", err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		}
+		sendResponse(w, nil, http.StatusOK)
+	}
+}
+
 func (app *App) TicketHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
