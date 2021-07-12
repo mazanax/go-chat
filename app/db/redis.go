@@ -369,7 +369,21 @@ func (rd *RedisDriver) GetOnlineUsers() []string {
 		logger.Fatal("Redis connection failed: %s", err.Error())
 	}
 
-	return users
+	result := make([]string, 0)
+	for _, user := range users {
+		online, err := rd.connection.Get(rd.ctx, fmt.Sprintf("online:%s", user)).Result()
+		if err != nil {
+			continue
+		}
+		v, _ := strconv.Atoi(online)
+		if v <= 0 {
+			continue
+		}
+
+		result = append(result, user)
+	}
+
+	return result
 }
 
 func (rd *RedisDriver) CreateUserOnline(userUUID string) error {
@@ -378,16 +392,36 @@ func (rd *RedisDriver) CreateUserOnline(userUUID string) error {
 		return err
 	}
 
-	return nil
-}
-
-func (rd *RedisDriver) RemoveUserOnline(userUUID string) error {
-	_, err := rd.connection.SRem(rd.ctx, "online", userUUID).Result()
+	count, err := rd.connection.Incr(rd.ctx, fmt.Sprintf("online:%s", userUUID)).Result()
 	if err != nil {
 		return err
 	}
 
+	logger.Debug("[websocket] %s: %d\n", userUUID, count)
+
 	return nil
+}
+
+func (rd *RedisDriver) RemoveUserOnline(userUUID string) error {
+	count, err := rd.connection.Decr(rd.ctx, fmt.Sprintf("online:%s", userUUID)).Result()
+	if err != nil {
+		return err
+	}
+
+	_, err = rd.connection.TxPipelined(rd.ctx, func(pipe redis.Pipeliner) error {
+		logger.Debug("[websocket] %s: %d\n", userUUID, count)
+		if count <= 0 {
+			_, err = pipe.SRem(rd.ctx, "online", userUUID).Result()
+			if err != nil {
+				_ = pipe.Discard()
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	return err
 }
 
 // endregion

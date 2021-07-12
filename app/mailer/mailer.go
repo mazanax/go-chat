@@ -104,6 +104,7 @@ func (mailer *Mailer) Enqueue(email string, message string, subject string) {
 	to := mail.Address{Name: "", Address: email}
 
 	msg := fmt.Sprintf("From: %s\r\n", from.String()) +
+		fmt.Sprintf("Reply-To: %s\r\n", from.String()) +
 		fmt.Sprintf("To: %s\r\n", to.String()) +
 		fmt.Sprintf("Subject: %s\r\n", subject) +
 		"MIME-version: 1.0;\r\n" +

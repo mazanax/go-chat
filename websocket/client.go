@@ -20,7 +20,7 @@ const (
 	writeWait      = 10 * time.Second
 	pongWait       = 60 * time.Second
 	pingPeriod     = (pongWait * 9) / 10
-	maxMessageSize = 512
+	maxMessageSize = 2097152 // 2 MiB
 )
 
 var (
@@ -44,11 +44,22 @@ type Client struct {
 func (c *Client) readPump() {
 	defer func() {
 		c.hub.unregister <- c
-		c.hub.notifications <- &models.Message{
-			ID:        uuid.NewString(),
-			UserID:    c.userID,
-			CreatedAt: int(time.Now().Unix()),
-			Type:      models.UserDisconnected,
+
+		disconnected := true
+		for client, _ := range c.hub.clients {
+			if client.userID == c.userID && client != c {
+				disconnected = false
+				break
+			}
+		}
+
+		if disconnected {
+			c.hub.notifications <- &models.Message{
+				ID:        uuid.NewString(),
+				UserID:    c.userID,
+				CreatedAt: int(time.Now().Unix()),
+				Type:      models.UserDisconnected,
+			}
 		}
 
 		if err := c.conn.Close(); err != nil {

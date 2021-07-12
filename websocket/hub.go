@@ -14,7 +14,7 @@ type Hub struct {
 	// this channel is used to send notifications from the REST API
 	notifications chan *models.Message
 
-	clients    map[*Client]bool
+	clients    map[*Client]interface{}
 	broadcast  chan *models.Message
 	register   chan *Client
 	unregister chan *Client
@@ -36,7 +36,7 @@ func NewHub(
 		broadcast:  make(chan *models.Message),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
-		clients:    make(map[*Client]bool),
+		clients:    make(map[*Client]interface{}),
 	}
 }
 
@@ -65,7 +65,7 @@ func (h *Hub) Run() {
 				logger.Fatal("[websocket] Cannot save online user: %v\n", err)
 			}
 
-			h.clients[client] = true
+			h.clients[client] = nil
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
