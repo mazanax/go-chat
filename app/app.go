@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gorilla/mux"
 	"github.com/mazanax/go-chat/app/db"
+	"github.com/mazanax/go-chat/app/mailer"
 	"github.com/mazanax/go-chat/app/models"
 	"github.com/mazanax/go-chat/app/security"
 )
@@ -18,6 +19,7 @@ type App struct {
 	PasswordResetTokenRepository db.ResetPasswordTokenRepository
 
 	Router            *mux.Router
+	Mailer            *mailer.Mailer
 	passwordEncryptor security.PasswordEncryptor
 
 	notifications chan *models.Message
@@ -26,16 +28,22 @@ type App struct {
 func New(redisAddr string, redisPassword string, redisDb int, notifications chan *models.Message) *App {
 	ctx := context.Background()
 	redisDriver := db.NewRedisDriver(ctx, redisAddr, redisPassword, redisDb)
+	bcryptEncryptor := security.NewBcryptEncryptor(14)
+	mailer_ := mailer.New("durov", "durov@yandex.ru", "vmolhgmlxdgluhpi", "smtp.yandex.ru", 465)
+
 	app := &App{
-		ctx:                   ctx,
-		UserRepository:        &redisDriver,
-		AccessTokenRepository: &redisDriver,
-		TicketRepository:      &redisDriver,
-		OnlineRepository:      &redisDriver,
-		MessageRepository:     &redisDriver,
-		Router:                mux.NewRouter(),
-		passwordEncryptor:     security.NewBcryptEncryptor(14),
-		notifications:         notifications,
+		ctx:                          ctx,
+		UserRepository:               &redisDriver,
+		AccessTokenRepository:        &redisDriver,
+		TicketRepository:             &redisDriver,
+		OnlineRepository:             &redisDriver,
+		MessageRepository:            &redisDriver,
+		PasswordResetTokenRepository: &redisDriver,
+
+		Router:            mux.NewRouter(),
+		Mailer:            &mailer_,
+		passwordEncryptor: &bcryptEncryptor,
+		notifications:     notifications,
 	}
 
 	app.initRoutes()
@@ -45,8 +53,7 @@ func New(redisAddr string, redisPassword string, redisDb int, notifications chan
 func (app *App) initRoutes() {
 	app.Router.HandleFunc("/", app.IndexHandler()).Methods("GET")
 	app.Router.HandleFunc("/api/token", app.TokenHandler()).Methods("POST")
-	app.Router.HandleFunc("/api/user", app.UserHandler()).Methods("GET")
-	app.Router.HandleFunc("/api/user", app.UserHandler()).Methods("PATCH")
+	app.Router.HandleFunc("/api/user", app.UserHandler()).Methods("GET", "PATCH")
 	app.Router.HandleFunc("/api/user/{uuid}", app.UserHandler()).Methods("GET")
 	app.Router.HandleFunc("/api/users", app.UsersHandler()).Methods("GET")
 	app.Router.HandleFunc("/api/online", app.OnlineHandler()).Methods("GET")

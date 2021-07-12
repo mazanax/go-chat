@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	TokenDurationHours    = 48
-	TicketDurationSeconds = 45
+	ResetPasswordTokenDurationMinutes = 5
+	TokenDurationHours                = 48
+	TicketDurationSeconds             = 45
 )
 
 func NewToken(accessTokenRepository db.AccessTokenRepository, user *models.User) (models.AccessToken, error) {
@@ -33,12 +34,12 @@ func NewToken(accessTokenRepository db.AccessTokenRepository, user *models.User)
 
 func NewPasswordResetToken(repository db.ResetPasswordTokenRepository, user *models.User) (models.PasswordResetToken, error) {
 	randomString := randomHexString(64)
-	tokenUUID, err := repository.CreateToken(user, randomString, time.Duration(TokenDurationHours)*time.Hour)
+	tokenUUID, err := repository.CreateResetPasswordToken(user, randomString, time.Duration(ResetPasswordTokenDurationMinutes)*time.Minute)
 	if err != nil {
 		return models.PasswordResetToken{}, err
 	}
 
-	token, err := repository.GetToken(tokenUUID)
+	token, err := repository.GetResetPasswordToken(tokenUUID)
 	if err != nil && errors.Is(err, db.TokenNotFound) {
 		return token, err
 	}

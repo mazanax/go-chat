@@ -24,6 +24,7 @@ type UserRepository interface {
 	GetUser(id string) (models.User, error)
 	GetUsers() []models.User
 	FindUserByEmail(email string) (models.User, error)
+	UpdateUserField(user *models.User, field string, value string) error
 }
 
 type TicketRepository interface {
@@ -52,8 +53,9 @@ type AccessTokenRepository interface {
 }
 
 type ResetPasswordTokenRepository interface {
-	CreateToken(user *models.User, randomString string, duration time.Duration) (string, error)
-	GetToken(id string) (models.PasswordResetToken, error)
-	FindTokenByString(token string) (models.PasswordResetToken, error)
-	RemoveToken(token models.PasswordResetToken) error
+	CreateResetPasswordToken(user *models.User, randomString string, duration time.Duration) (string, error)
+	GetResetPasswordToken(id string) (models.PasswordResetToken, error)
+	FindResetPasswordTokenByUser(user *models.User) (models.PasswordResetToken, error)
+	FindResetPasswordTokenByString(token string) (models.PasswordResetToken, error)
+	RemoveResetPasswordToken(token models.PasswordResetToken) error
 }

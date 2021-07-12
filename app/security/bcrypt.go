@@ -6,8 +6,8 @@ type BcryptEncryptor struct {
 	cost int
 }
 
-func NewBcryptEncryptor(cost int) *BcryptEncryptor {
-	return &BcryptEncryptor{
+func NewBcryptEncryptor(cost int) BcryptEncryptor {
+	return BcryptEncryptor{
 		cost: cost,
 	}
 }

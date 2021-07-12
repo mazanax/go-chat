@@ -28,6 +28,8 @@ func main() {
 	notifications := make(chan *models.Message)
 
 	app_ := app.New("0.0.0.0:6379", "", 0, notifications)
+	go app_.Mailer.Run()
+
 	hub := websocket.NewHub(app_.TicketRepository, app_.OnlineRepository, app_.MessageRepository, notifications)
 	go hub.Run()
 	app_.Router.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +41,7 @@ func main() {
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedHeaders:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PATCH"},
 		AllowCredentials: true,
 	})
 

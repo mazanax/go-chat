@@ -37,9 +37,9 @@ type PasswordResetToken struct {
 }
 
 type PasswordResetRequest struct {
-	Email string `validate:"required,email"`
+	Email string `json:"email" validate:"required,email"`
 }
 
 type TokenByCodeRequest struct {
-	Code string `validate:"required"`
+	Code string `json:"code" validate:"required"`
 }

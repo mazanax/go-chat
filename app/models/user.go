@@ -26,6 +26,12 @@ type CreateUserRequest struct {
 	Password string `json:"password" validate:"required,min=6,max=255"`
 }
 
+type UpdateUserRequest struct {
+	Email    string `json:"email" validate:"omitempty,email"`
+	Name     string `json:"name" validate:"omitempty,min=2,max=255"`
+	Password string `json:"password" validate:"omitempty,min=6,max=255"`
+}
+
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=6,max=255"`

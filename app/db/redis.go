@@ -172,6 +172,22 @@ func (rd *RedisDriver) FindUserByEmail(email string) (models.User, error) {
 	return rd.GetUser(userId)
 }
 
+func (rd *RedisDriver) UpdateUserField(user *models.User, field string, value string) error {
+	if _, err := rd.GetUser(user.ID); errors.Is(err, UserNotFound) {
+		return err
+	}
+
+	_, err := rd.connection.HSet(rd.ctx, fmt.Sprintf("user:%s", user.ID), field, value).Result()
+	switch {
+	case errors.Is(err, redis.Nil):
+		return UserNotFound
+	case err != nil:
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	return err
+}
+
 // endregion
 
 // region TokenRepository
@@ -450,6 +466,129 @@ func (rd *RedisDriver) GetMessages(limit int) []models.Message {
 	}
 
 	return result
+}
+
+// endregion
+
+// region ResetPasswordTokenRepository
+
+func (rd *RedisDriver) CreateResetPasswordToken(
+	user *models.User,
+	randomString string,
+	duration time.Duration,
+) (string, error) {
+	// start transaction
+	tokenUuid := uuid.NewString()
+	_, err := rd.connection.TxPipelined(rd.ctx, func(pipe redis.Pipeliner) error {
+		_, err := pipe.HSet(
+			rd.ctx,
+			fmt.Sprintf("reset_token:%s", tokenUuid),
+			map[string]interface{}{
+				"id":        tokenUuid,
+				"userId":    user.ID,
+				"token":     randomString,
+				"createdAt": time.Now().Unix(),
+				"expireAt":  time.Now().Add(duration).Unix(),
+			},
+		).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+		_, err = pipe.Expire(rd.ctx, fmt.Sprintf("reset_token:%s", tokenUuid), duration).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+		_, err = pipe.Set(rd.ctx, fmt.Sprintf("reset_token_to_uuid:%s", randomString), tokenUuid, duration).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+		_, err = pipe.Set(rd.ctx, fmt.Sprintf("user_reset_token:%s", user.ID), tokenUuid, duration).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return "", TokenNotCreated
+	}
+
+	return tokenUuid, nil
+}
+
+func (rd *RedisDriver) GetResetPasswordToken(id string) (models.PasswordResetToken, error) {
+	val, err := rd.connection.HGetAll(rd.ctx, fmt.Sprintf("reset_token:%s", id)).Result()
+	switch {
+	case errors.Is(err, redis.Nil) || len(val) == 0:
+		return models.PasswordResetToken{}, TokenNotFound
+	case err != nil:
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	createdAt, _ := strconv.Atoi(val["createdAt"])
+	expireAt, _ := strconv.Atoi(val["expireAt"])
+	return models.PasswordResetToken{
+		ID:        val["id"],
+		UserID:    val["userId"],
+		Token:     val["token"],
+		CreatedAt: createdAt,
+		ExpireAt:  expireAt,
+	}, nil
+}
+
+func (rd *RedisDriver) FindResetPasswordTokenByUser(user *models.User) (models.PasswordResetToken, error) {
+	tokenUUID, err := rd.connection.Get(rd.ctx, fmt.Sprintf("user_reset_token:%s", user.ID)).Result()
+	switch {
+	case errors.Is(err, redis.Nil) || len(tokenUUID) == 0:
+		return models.PasswordResetToken{}, TokenNotFound
+	case err != nil:
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	return rd.GetResetPasswordToken(tokenUUID)
+}
+
+func (rd *RedisDriver) FindResetPasswordTokenByString(token string) (models.PasswordResetToken, error) {
+	tokenUUID, err := rd.connection.Get(rd.ctx, fmt.Sprintf("reset_token_to_uuid:%s", token)).Result()
+	switch {
+	case errors.Is(err, redis.Nil) || len(tokenUUID) == 0:
+		return models.PasswordResetToken{}, TokenNotFound
+	case err != nil:
+		logger.Fatal("Redis connection failed: %s", err.Error())
+	}
+
+	return rd.GetResetPasswordToken(tokenUUID)
+}
+
+func (rd *RedisDriver) RemoveResetPasswordToken(token models.PasswordResetToken) error {
+	_, err := rd.connection.TxPipelined(rd.ctx, func(pipe redis.Pipeliner) error {
+		_, err := pipe.Del(rd.ctx, fmt.Sprintf("reset_token_to_uuid:%s", token.Token)).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		_, err = pipe.Del(rd.ctx, fmt.Sprintf("reset_token:%s", token.ID)).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		_, err = pipe.Del(rd.ctx, fmt.Sprintf("user_reset_token:%s", token.UserID), token.ID).Result()
+		if err != nil {
+			_ = pipe.Discard()
+			return err
+		}
+
+		return nil
+	})
+
+	return err
 }
 
 // endregion

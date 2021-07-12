@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/mazanax/go-chat/app/db"
 	"github.com/mazanax/go-chat/app/logger"
+	"github.com/mazanax/go-chat/app/mailer"
 	"github.com/mazanax/go-chat/app/models"
 	"github.com/mazanax/go-chat/app/requests"
 	"github.com/mazanax/go-chat/app/tokens"
@@ -122,38 +123,132 @@ func (app *App) SignUpHandler() http.HandlerFunc {
 func (app *App) UserHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
+
 		if err := checkAuthorization(r); errors.Is(err, Unauthorized) {
 			logger.Debug("[http] Unauthorized\n")
 			sendResponse(w, models.Unauthorized, http.StatusUnauthorized)
 			return
 		}
 
-		tokenString := parseToken(r)
-		accessToken, err := app.AccessTokenRepository.FindTokenByString(tokenString)
+		if r.Method == "GET" {
+			app.getUser(w, r)
+			return
+		}
+		if r.Method == "PATCH" {
+			app.patchUser(w, r)
+			return
+		}
+	}
+}
+
+func (app *App) getUser(w http.ResponseWriter, r *http.Request) {
+	tokenString := parseToken(r)
+	accessToken, err := app.AccessTokenRepository.FindTokenByString(tokenString)
+	if err != nil {
+		accessToken = models.AccessToken{}
+	}
+
+	vars := mux.Vars(r)
+	uuid_ := vars["uuid"]
+	if len(uuid_) == 0 && len(accessToken.UserID) > 0 {
+		uuid_ = accessToken.UserID
+	}
+
+	needEmail := false
+	if uuid_ == accessToken.UserID {
+		needEmail = true
+	}
+
+	user, err := app.UserRepository.GetUser(uuid_)
+	if err != nil && errors.Is(err, db.UserNotFound) {
+		logger.Debug("[http] User #%s not found\n", uuid_)
+		sendResponse(w, models.UserNotFound, http.StatusNotFound)
+		return
+	}
+
+	sendResponse(w, mapUserToJson(user, needEmail), http.StatusOK)
+}
+
+func (app *App) patchUser(w http.ResponseWriter, r *http.Request) {
+	tokenString := parseToken(r)
+	accessToken, err := app.AccessTokenRepository.FindTokenByString(tokenString)
+	if err != nil || len(accessToken.Token) == 0 {
+		logger.Debug("[http] Unauthorized\n")
+		sendResponse(w, models.Unauthorized, http.StatusUnauthorized)
+		return
+	}
+
+	req := models.UpdateUserRequest{}
+	err = parse(r, &req)
+	if err != nil {
+		logger.Error("[http] Cannot parse post body. err=%v\n", err)
+		sendResponse(w, models.ErrorResponse{Code: http.StatusBadRequest}, http.StatusBadRequest)
+		return
+	}
+
+	validationErrors := requests.Validate(req)
+	if len(validationErrors) > 0 {
+		logger.Debug("[http] Bad request: %s %s\n", r.Method, r.URL)
+		sendResponse(w, nil, http.StatusBadRequest)
+		return
+	}
+
+	user, err := app.UserRepository.GetUser(accessToken.UserID)
+	if err != nil && errors.Is(err, db.UserNotFound) {
+		logger.Debug("[http] User #%s not found\n", accessToken.UserID)
+		sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	if len(req.Email) > 0 {
+		err := app.UserRepository.UpdateUserField(&user, "email", req.Email)
 		if err != nil {
-			accessToken = models.AccessToken{}
+			logger.Debug("[http] Cannot update user #%s email: %s\n", accessToken.UserID, err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
 		}
+	}
 
-		vars := mux.Vars(r)
-		uuid_ := vars["uuid"]
-		if len(uuid_) == 0 && len(accessToken.UserID) > 0 {
-			uuid_ = accessToken.UserID
+	if len(req.Name) > 0 {
+		err := app.UserRepository.UpdateUserField(&user, "name", req.Name)
+		if err != nil {
+			logger.Debug("[http] Cannot update user #%s name: %s\n", accessToken.UserID, err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
 		}
+	}
 
-		needEmail := false
-		if uuid_ == accessToken.UserID {
-			needEmail = true
-		}
-
-		user, err := app.UserRepository.GetUser(uuid_)
-		if err != nil && errors.Is(err, db.UserNotFound) {
-			logger.Debug("[http] User #%s not found\n", uuid_)
-			sendResponse(w, models.UserNotFound, http.StatusNotFound)
+	if len(req.Password) > 0 {
+		encryptedPassword, err := app.passwordEncryptor.GenerateHash(req.Password)
+		if err != nil {
+			logger.Debug("[http] Cannot encrypt user #%s password: %s\n", accessToken.UserID, err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
 			return
 		}
 
-		sendResponse(w, mapUserToJson(user, needEmail), http.StatusOK)
+		err = app.UserRepository.UpdateUserField(&user, "password", encryptedPassword)
+		if err != nil {
+			logger.Debug("[http] Cannot update user #%s email: %s\n", accessToken.UserID, err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		}
 	}
+
+	token, err := app.PasswordResetTokenRepository.FindResetPasswordTokenByUser(&user)
+	if err != nil && !errors.Is(err, db.TokenNotFound) {
+		logger.Debug("[http] Cannot get reset token for user #%s: %s\n", accessToken.UserID, err)
+		sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+		return
+	}
+	err = app.PasswordResetTokenRepository.RemoveResetPasswordToken(token)
+	if err != nil {
+		logger.Debug("[http] Cannot remove reset token for user #%s: %s\n", accessToken.UserID, err)
+		sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	user, _ = app.UserRepository.GetUser(accessToken.UserID)
+	sendResponse(w, mapUserToJson(user, true), http.StatusOK)
 }
 
 func (app *App) LoginHandler() http.HandlerFunc {
@@ -182,7 +277,7 @@ func (app *App) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		if app.passwordEncryptor.CompareHasAndPassword(req.Password, user.Password) {
+		if !app.passwordEncryptor.CompareHasAndPassword(req.Password, user.Password) {
 			logger.Debug("[http] Invalid password %s: %s %s\n", req.Email, r.Method, r.URL)
 			sendResponse(w, models.InvalidCredentials, http.StatusUnauthorized)
 			return
@@ -247,15 +342,30 @@ func (app *App) ResetPasswordHandler() http.HandlerFunc {
 			return
 		}
 
-		token, err := tokens.NewPasswordResetToken(app.PasswordResetTokenRepository, &user)
-		if err != nil {
-			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
+		created := false
+		token, err := app.PasswordResetTokenRepository.FindResetPasswordTokenByUser(&user)
+		switch {
+		case errors.Is(err, db.TokenNotFound):
+			token, err = tokens.NewPasswordResetToken(app.PasswordResetTokenRepository, &user)
+			if err != nil {
+				logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
+				sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+				return
+			}
+			created = true
+		case err != nil:
+			logger.Debug("[http] Cannot get reset token for user #%s: %s\n", user.ID, err)
 			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
 			return
 		}
-
 		logger.Debug("[password reset] Code: %s\n", token.Token)
-		// here send e-mail
+		if created {
+			app.Mailer.Enqueue(
+				user.Email,
+				mailer.PasswordRecoveryEmail(user.Username, user.Email, publicLink("/reset-password?code="+token.Token)),
+				"Password Recovery - MZNX Chat",
+			)
+		}
 
 		sendResponse(w, nil, http.StatusOK)
 	}
@@ -280,7 +390,7 @@ func (app *App) TokenHandler() http.HandlerFunc {
 			return
 		}
 
-		token, err := app.PasswordResetTokenRepository.FindTokenByString(req.Code)
+		token, err := app.PasswordResetTokenRepository.FindResetPasswordTokenByString(req.Code)
 		switch {
 		case errors.Is(err, db.TokenNotFound):
 			logger.Debug("[http] Password reset token %s not found: %s %s\n", req.Code, r.Method, r.URL)

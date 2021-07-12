@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/mazanax/go-chat/app/logger"
 	"net/http"
+	"strings"
 )
 
 var Unauthorized = fmt.Errorf("unathorized")
@@ -43,4 +44,8 @@ func sendResponse(w http.ResponseWriter, data interface{}, status int) {
 	if err != nil {
 		logger.Error("Cannot format json. err=%v\n", err)
 	}
+}
+
+func publicLink(endpoint string) string {
+	return "https://chat.mznx.ru/" + strings.TrimLeft(endpoint, "/")
 }
