@@ -1,7 +1,6 @@
 package websocket
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
@@ -9,6 +8,7 @@ import (
 	"github.com/mazanax/go-chat/app/logger"
 	"github.com/mazanax/go-chat/app/models"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -70,12 +70,16 @@ func (c *Client) readPump() {
 			}
 			break
 		}
-		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		logger.Debug("[websocket] Got new message from %s: %s\n", c.conn.RemoteAddr().String(), string(message))
 
 		msg := models.WebsocketMessage{}
 		if err := json.Unmarshal(message, &msg); err != nil {
 			logger.Error("[websocket] Cannot decode message: %s\n", err)
+			continue
+		}
+
+		clearText := strings.ReplaceAll(strings.ReplaceAll(msg.Text, "\n", ""), " ", "")
+		if len(msg.Text) == 0 || len(clearText) == 0 {
 			continue
 		}
 
