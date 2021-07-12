@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
@@ -70,6 +71,7 @@ func (c *Client) readPump() {
 			}
 			break
 		}
+		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		logger.Debug("[websocket] Got new message from %s: %s\n", c.conn.RemoteAddr().String(), string(message))
 
 		msg := models.WebsocketMessage{}
