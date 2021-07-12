@@ -1,0 +1,52 @@
+name: Go
+
+on:
+  push:
+    branches: [ development ]
+  pull_request:
+    branches: [ development ]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16.2
+
+      - name: Build
+        run: go build -o chat
+
+      - name: Stop Supervisor
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.BACKEND_HOST }}
+          username: ${{ secrets.BACKEND_USER }}
+          key: ${{ secrets.BACKEND_PRIVATE_KEY }}
+          script: supervisorctl stop chat-backend
+
+      - name: Deploy
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.BACKEND_HOST }}
+          username: ${{ secrets.BACKEND_USER }}
+          key: ${{ secrets.BACKEND_PRIVATE_KEY }}
+          source: "chat"
+          target: ${{ secrets.BACKEND_DEPLOY_DIRECTORY }}
+
+      - name: Reload Supervisor
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.BACKEND_HOST }}
+          username: ${{ secrets.BACKEND_USER }}
+          key: ${{ secrets.BACKEND_PRIVATE_KEY }}
+          script: |
+            mv ${{ secrets.BACKEND_DEPLOY_DIRECTORY }}chat/go-chat ${{ secrets.BACKEND_DEPLOY_DIRECTORY }}
+            rm -r ${{ secrets.BACKEND_DEPLOY_DIRECTORY }}chat
+            mv ${{ secrets.BACKEND_DEPLOY_DIRECTORY }}go-chat ${{ secrets.BACKEND_DEPLOY_DIRECTORY }}chat
+            chown ${{ secrets.BACKEND_USER }}:${{ secrets.BACKEND_USER }} chat
+            supervisorctl reload
