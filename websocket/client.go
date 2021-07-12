@@ -8,6 +8,7 @@ import (
 	"github.com/mazanax/go-chat/app/db"
 	"github.com/mazanax/go-chat/app/logger"
 	"github.com/mazanax/go-chat/app/models"
+	"github.com/mazanax/go-chat/config"
 	"net/http"
 	"strings"
 	"time"
@@ -27,13 +28,10 @@ var (
 	space   = []byte{' '}
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return r.Header.Get("origin") == "http://localhost:3000" || r.Header.Get("origin") == "https://localhost:3000"
-	},
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
+var (
+	upgraderInitialized bool = false
+	upgrader            websocket.Upgrader
+)
 
 type Client struct {
 	// UUID of user
@@ -160,6 +158,23 @@ func (c *Client) writePump() {
 }
 
 func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
+	if !upgraderInitialized {
+		upgrader = websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				for _, origin := range config.AllowedOrigins {
+					if origin == r.Header.Get("origin") {
+						return true
+					}
+				}
+
+				return false
+			},
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		}
+		upgraderInitialized = true
+	}
+
 	logger.Debug("[websocket] Incoming connection\n")
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {

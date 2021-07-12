@@ -9,6 +9,20 @@ import (
 	"github.com/mazanax/go-chat/app/security"
 )
 
+type Config struct {
+	RedisAddr     string
+	RedisPassword string
+	RedisDB       int
+
+	MailerLogin    string
+	MailerSender   string
+	MailerPassword string
+	MailerSmtpHost string
+	MailerSmtpPort int
+
+	BCryptCost int
+}
+
 type App struct {
 	ctx                          context.Context
 	UserRepository               db.UserRepository
@@ -25,11 +39,17 @@ type App struct {
 	notifications chan *models.Message
 }
 
-func New(redisAddr string, redisPassword string, redisDb int, notifications chan *models.Message) *App {
+func New(config Config, notifications chan *models.Message) *App {
 	ctx := context.Background()
-	redisDriver := db.NewRedisDriver(ctx, redisAddr, redisPassword, redisDb)
-	bcryptEncryptor := security.NewBcryptEncryptor(14)
-	mailer_ := mailer.New("durov", "durov@yandex.ru", "vmolhgmlxdgluhpi", "smtp.yandex.ru", 465)
+	redisDriver := db.NewRedisDriver(ctx, config.RedisAddr, config.RedisPassword, config.RedisDB)
+	bcryptEncryptor := security.NewBcryptEncryptor(config.BCryptCost)
+	mailer_ := mailer.New(
+		config.MailerLogin,
+		config.MailerSender,
+		config.MailerPassword,
+		config.MailerSmtpHost,
+		config.MailerSmtpPort,
+	)
 
 	app := &App{
 		ctx:                          ctx,
@@ -51,7 +71,6 @@ func New(redisAddr string, redisPassword string, redisDb int, notifications chan
 }
 
 func (app *App) initRoutes() {
-	app.Router.HandleFunc("/", app.IndexHandler()).Methods("GET")
 	app.Router.HandleFunc("/api/token", app.TokenHandler()).Methods("POST")
 	app.Router.HandleFunc("/api/user", app.UserHandler()).Methods("GET", "PATCH")
 	app.Router.HandleFunc("/api/user/{uuid}", app.UserHandler()).Methods("GET")

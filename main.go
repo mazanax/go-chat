@@ -6,6 +6,7 @@ import (
 	"github.com/mazanax/go-chat/app"
 	"github.com/mazanax/go-chat/app/logger"
 	"github.com/mazanax/go-chat/app/models"
+	"github.com/mazanax/go-chat/config"
 	"github.com/mazanax/go-chat/websocket"
 	"github.com/rs/cors"
 	"net/http"
@@ -27,7 +28,18 @@ func main() {
 
 	notifications := make(chan *models.Message)
 
-	app_ := app.New("0.0.0.0:6379", "", 0, notifications)
+	config_ := app.Config{
+		RedisAddr:      config.RedisAddr,
+		RedisPassword:  config.RedisPassword,
+		RedisDB:        config.RedisDB,
+		MailerLogin:    config.MailerLogin,
+		MailerSender:   config.MailerSender,
+		MailerPassword: config.MailerPassword,
+		MailerSmtpHost: config.MailerSmtpHost,
+		MailerSmtpPort: config.MailerSmtpPort,
+		BCryptCost:     config.BCryptCost,
+	}
+	app_ := app.New(config_, notifications)
 	go app_.Mailer.Run()
 
 	hub := websocket.NewHub(app_.TicketRepository, app_.OnlineRepository, app_.MessageRepository, notifications)
@@ -39,7 +51,7 @@ func main() {
 	http.HandleFunc("/", app_.Router.ServeHTTP)
 
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   config.AllowedOrigins,
 		AllowedHeaders:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PATCH"},
 		AllowCredentials: true,

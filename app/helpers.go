@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mazanax/go-chat/app/logger"
+	"github.com/mazanax/go-chat/config"
 	"net/http"
 	"strings"
 )
@@ -47,5 +48,5 @@ func sendResponse(w http.ResponseWriter, data interface{}, status int) {
 }
 
 func publicLink(endpoint string) string {
-	return "https://chat.mznx.ru/" + strings.TrimLeft(endpoint, "/")
+	return strings.TrimRight(config.PublicHost, "/") + "/" + strings.TrimLeft(endpoint, "/")
 }

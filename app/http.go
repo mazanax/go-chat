@@ -11,19 +11,10 @@ import (
 	"github.com/mazanax/go-chat/app/requests"
 	"github.com/mazanax/go-chat/app/tokens"
 	"net/http"
-	"path/filepath"
 	"time"
 )
 
 // region HttpHandlers
-
-func (app *App) IndexHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
-		// path to file should be from binary location
-		http.ServeFile(w, r, filepath.Join("html", "index.html"))
-	}
-}
 
 func (app *App) UsersHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
