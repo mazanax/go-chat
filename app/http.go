@@ -29,7 +29,7 @@ func (app *App) UsersHandler() http.HandlerFunc {
 		accessToken, _ := app.AccessTokenRepository.FindTokenByString(tokenString)
 
 		users := app.UserRepository.GetUsers()
-		var jsonUsers []models.JsonUser
+		jsonUsers := make([]models.JsonUser, 0)
 		for _, user := range users {
 			withEmail := accessToken.UserID == user.ID
 			jsonUsers = append(jsonUsers, mapUserToJson(user, withEmail))
