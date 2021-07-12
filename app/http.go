@@ -438,7 +438,7 @@ func (app *App) HistoryHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
 
-		var jsonMessages []models.JsonMessage
+		jsonMessages := make([]models.JsonMessage, 0)
 		messages := app.MessageRepository.GetMessages(100)
 
 		for _, message := range messages {
