@@ -5,6 +5,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/mazanax/go-chat/app/db"
 	"github.com/mazanax/go-chat/app/models"
+	"github.com/mazanax/go-chat/app/security"
 )
 
 type App struct {
@@ -16,7 +17,8 @@ type App struct {
 	MessageRepository            db.MessageRepository
 	PasswordResetTokenRepository db.ResetPasswordTokenRepository
 
-	Router *mux.Router
+	Router            *mux.Router
+	passwordEncryptor security.PasswordEncryptor
 
 	notifications chan *models.Message
 }
@@ -32,6 +34,7 @@ func New(redisAddr string, redisPassword string, redisDb int, notifications chan
 		OnlineRepository:      &redisDriver,
 		MessageRepository:     &redisDriver,
 		Router:                mux.NewRouter(),
+		passwordEncryptor:     security.NewBcryptEncryptor(14),
 		notifications:         notifications,
 	}
 

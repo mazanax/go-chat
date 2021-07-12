@@ -79,7 +79,14 @@ func (app *App) SignUpHandler() http.HandlerFunc {
 			return
 		}
 
-		uuid_, err := app.UserRepository.CreateUser(req.Email, req.Username, req.Name, req.Password)
+		encryptedPassword, err := app.passwordEncryptor.GenerateHash(req.Password)
+		if err != nil {
+			logger.Debug("[http] Cannot encode password: %s\n", err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		}
+
+		uuid_, err := app.UserRepository.CreateUser(req.Email, req.Username, req.Name, encryptedPassword)
 		switch {
 		case errors.Is(err, db.EmailAlreadyExists):
 			logger.Debug("[http] User with email %s already exists: %s %s\n", req.Email, r.Method, r.URL)
@@ -175,7 +182,7 @@ func (app *App) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		if user.Password != req.Password {
+		if app.passwordEncryptor.CompareHasAndPassword(req.Password, user.Password) {
 			logger.Debug("[http] Invalid password %s: %s %s\n", req.Email, r.Method, r.URL)
 			sendResponse(w, models.InvalidCredentials, http.StatusUnauthorized)
 			return
