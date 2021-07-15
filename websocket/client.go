@@ -242,6 +242,7 @@ func mapMessageToJson(message models.Message) models.JsonMessage {
 		UserID:    message.UserID,
 		Type:      message.Type,
 		CreatedAt: message.CreatedAt,
+		UpdatedAt: message.UpdatedAt,
 		Text:      message.Text,
 		Data:      message.Data,
 	}
