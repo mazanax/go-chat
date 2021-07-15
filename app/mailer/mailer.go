@@ -22,10 +22,10 @@ type Mailer struct {
 	queue  chan Mail
 }
 
-func New(authLogin string, senderMail string, senderPassword string, smtpHost string, smtpPort int) Mailer {
+func New(authLogin string, senderMail string, senderPassword string, smtpHost string, smtpPort int) *Mailer {
 	auth := smtp.PlainAuth("", authLogin, senderPassword, smtpHost)
 
-	return Mailer{
+	return &Mailer{
 		auth:   auth,
 		host:   smtpHost,
 		sender: senderMail,

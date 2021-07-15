@@ -41,6 +41,7 @@ type OnlineRepository interface {
 
 type MessageRepository interface {
 	StoreMessage(userID string, messageType int, messageUUID string, text string) (string, error)
+	UpdateMessage(message *models.Message, newText string) (models.Message, error)
 	GetMessage(id string) (models.Message, error)
 	GetMessages(count int) []models.Message
 }

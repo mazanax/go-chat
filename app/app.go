@@ -53,16 +53,16 @@ func New(config Config, notifications chan *models.Message) *App {
 
 	app := &App{
 		ctx:                          ctx,
-		UserRepository:               &redisDriver,
-		AccessTokenRepository:        &redisDriver,
-		TicketRepository:             &redisDriver,
-		OnlineRepository:             &redisDriver,
-		MessageRepository:            &redisDriver,
-		PasswordResetTokenRepository: &redisDriver,
+		UserRepository:               redisDriver,
+		AccessTokenRepository:        redisDriver,
+		TicketRepository:             redisDriver,
+		OnlineRepository:             redisDriver,
+		MessageRepository:            redisDriver,
+		PasswordResetTokenRepository: redisDriver,
 
 		Router:            mux.NewRouter(),
-		Mailer:            &mailer_,
-		passwordEncryptor: &bcryptEncryptor,
+		Mailer:            mailer_,
+		passwordEncryptor: bcryptEncryptor,
 		notifications:     notifications,
 	}
 
@@ -71,15 +71,28 @@ func New(config Config, notifications chan *models.Message) *App {
 }
 
 func (app *App) initRoutes() {
-	app.Router.HandleFunc("/api/token", app.TokenHandler()).Methods("POST")
+	// GET or PATCH user
 	app.Router.HandleFunc("/api/user", app.UserHandler()).Methods("GET", "PATCH")
+	// GET user info
 	app.Router.HandleFunc("/api/user/{uuid}", app.UserHandler()).Methods("GET")
+	// GET users list
 	app.Router.HandleFunc("/api/users", app.UsersHandler()).Methods("GET")
+	// GET list of UUID online users
 	app.Router.HandleFunc("/api/online", app.OnlineHandler()).Methods("GET")
+	// Create new user
 	app.Router.HandleFunc("/api/signup", app.SignUpHandler()).Methods("POST")
+	// Generate access token with Email and Password
 	app.Router.HandleFunc("/api/login", app.LoginHandler()).Methods("POST")
+	// Generate access token with PasswordResetToken
+	app.Router.HandleFunc("/api/token", app.TokenHandler()).Methods("POST")
+	// Invalidate current access token
 	app.Router.HandleFunc("/api/logout", app.LogoutHandler()).Methods("POST")
+	// Generate PasswordResetToken
 	app.Router.HandleFunc("/api/reset-password", app.ResetPasswordHandler()).Methods("POST")
+	// Generate ticket for websocket authentication
 	app.Router.HandleFunc("/api/ticket", app.TicketHandler()).Methods("POST")
+	// GET last 100 messages
 	app.Router.HandleFunc("/api/history", app.HistoryHandler()).Methods("GET")
+	// PATCH message
+	app.Router.HandleFunc("/api/message/{uuid}", app.UpdateMessageHandler()).Methods("PATCH")
 }

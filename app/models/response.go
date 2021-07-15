@@ -27,6 +27,10 @@ var (
 		Message: "User not found",
 		Code:    http.StatusNotFound,
 	}
+	MessageNotFound = ErrorResponse{
+		Message: "Message not found",
+		Code:    http.StatusNotFound,
+	}
 	InternalServerError = ErrorResponse{
 		Message: "Internal server error",
 		Code:    http.StatusInternalServerError,

@@ -2,7 +2,7 @@ package app
 
 import "github.com/mazanax/go-chat/app/models"
 
-func mapUserToJson(user models.User, withEmail bool) models.JsonUser {
+func mapUserToJson(user *models.User, withEmail bool) models.JsonUser {
 	email := user.Email
 	if !withEmail {
 		email = ""
@@ -18,7 +18,7 @@ func mapUserToJson(user models.User, withEmail bool) models.JsonUser {
 	}
 }
 
-func mapAccessTokenToJson(token models.AccessToken) models.JsonAccessToken {
+func mapAccessTokenToJson(token *models.AccessToken) models.JsonAccessToken {
 	return models.JsonAccessToken{
 		Token:     token.Token,
 		CreatedAt: token.CreatedAt,
@@ -26,7 +26,7 @@ func mapAccessTokenToJson(token models.AccessToken) models.JsonAccessToken {
 	}
 }
 
-func mapTicketToJson(ticket models.Ticket) models.JsonTicket {
+func mapTicketToJson(ticket *models.Ticket) models.JsonTicket {
 	return models.JsonTicket{
 		Ticket:    ticket.Ticket,
 		CreatedAt: ticket.CreatedAt,
@@ -34,12 +34,13 @@ func mapTicketToJson(ticket models.Ticket) models.JsonTicket {
 	}
 }
 
-func mapMessageToJson(message models.Message) models.JsonMessage {
+func mapMessageToJson(message *models.Message) models.JsonMessage {
 	return models.JsonMessage{
 		ID:        message.ID,
 		UserID:    message.UserID,
 		Type:      message.Type,
 		CreatedAt: message.CreatedAt,
+		UpdatedAt: message.UpdatedAt,
 		Text:      message.Text,
 	}
 }

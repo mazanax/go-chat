@@ -18,8 +18,8 @@ type RedisDriver struct {
 	connection *redis.Client
 }
 
-func NewRedisDriver(ctx context.Context, addr string, password string, defaultDb int) RedisDriver {
-	return RedisDriver{
+func NewRedisDriver(ctx context.Context, addr string, password string, defaultDb int) *RedisDriver {
+	return &RedisDriver{
 		ctx: ctx,
 		connection: redis.NewClient(&redis.Options{
 			Addr:     addr,
@@ -437,6 +437,7 @@ func (rd *RedisDriver) StoreMessage(userID string, messageType int, messageUUID 
 				"id":        messageUUID,
 				"userId":    userID,
 				"createdAt": time.Now().Unix(),
+				"updatedAt": time.Now().Unix(),
 				"type":      messageType,
 				"text":      text,
 			},
@@ -462,6 +463,22 @@ func (rd *RedisDriver) StoreMessage(userID string, messageType int, messageUUID 
 	return messageUUID, nil
 }
 
+func (rd *RedisDriver) UpdateMessage(message *models.Message, newText string) (models.Message, error) {
+	_, err := rd.connection.HSet(
+		rd.ctx,
+		fmt.Sprintf("message:%s", message.ID),
+		map[string]interface{}{
+			"text":      newText,
+			"updatedAt": time.Now().Unix(),
+		},
+	).Result()
+	if err != nil {
+		return *message, MessageNotFound
+	}
+
+	return rd.GetMessage(message.ID)
+}
+
 func (rd *RedisDriver) GetMessage(messageUUID string) (models.Message, error) {
 	val, err := rd.connection.HGetAll(rd.ctx, fmt.Sprintf("message:%s", messageUUID)).Result()
 	switch {
@@ -472,11 +489,16 @@ func (rd *RedisDriver) GetMessage(messageUUID string) (models.Message, error) {
 	}
 
 	createdAt, _ := strconv.Atoi(val["createdAt"])
+	updatedAt, _ := strconv.Atoi(val["updatedAt"])
+	if updatedAt == 0 {
+		updatedAt = createdAt
+	}
 	messageType, _ := strconv.Atoi(val["type"])
 	return models.Message{
 		ID:        val["id"],
 		UserID:    val["userId"],
 		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
 		Type:      messageType,
 		Text:      val["text"],
 	}, nil

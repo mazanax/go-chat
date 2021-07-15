@@ -32,7 +32,7 @@ func (app *App) UsersHandler() http.HandlerFunc {
 		jsonUsers := make([]models.JsonUser, 0)
 		for _, user := range users {
 			withEmail := accessToken.UserID == user.ID
-			jsonUsers = append(jsonUsers, mapUserToJson(user, withEmail))
+			jsonUsers = append(jsonUsers, mapUserToJson(&user, withEmail))
 		}
 
 		sendResponse(w, jsonUsers, http.StatusOK)
@@ -104,10 +104,10 @@ func (app *App) SignUpHandler() http.HandlerFunc {
 		app.notifications <- &models.Message{
 			ID:        uuid.NewString(),
 			Type:      models.UserRegistered,
-			Data:      mapUserToJson(user, false),
+			Data:      mapUserToJson(&user, false),
 			CreatedAt: int(time.Now().Unix()),
 		}
-		sendResponse(w, mapUserToJson(user, true), http.StatusCreated)
+		sendResponse(w, mapUserToJson(&user, true), http.StatusCreated)
 	}
 }
 
@@ -157,7 +157,7 @@ func (app *App) getUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sendResponse(w, mapUserToJson(user, needEmail), http.StatusOK)
+	sendResponse(w, mapUserToJson(&user, needEmail), http.StatusOK)
 }
 
 func (app *App) patchUser(w http.ResponseWriter, r *http.Request) {
@@ -239,7 +239,7 @@ func (app *App) patchUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, _ = app.UserRepository.GetUser(accessToken.UserID)
-	sendResponse(w, mapUserToJson(user, true), http.StatusOK)
+	sendResponse(w, mapUserToJson(&user, true), http.StatusOK)
 }
 
 func (app *App) LoginHandler() http.HandlerFunc {
@@ -281,7 +281,7 @@ func (app *App) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		sendResponse(w, mapAccessTokenToJson(token), http.StatusOK)
+		sendResponse(w, mapAccessTokenToJson(&token), http.StatusOK)
 	}
 }
 
@@ -377,7 +377,7 @@ func (app *App) TokenHandler() http.HandlerFunc {
 		validationErrors := requests.Validate(req)
 		if len(validationErrors) > 0 {
 			logger.Debug("[http] Forbidden: %s %s\n", r.Method, r.URL)
-			sendResponse(w, nil, http.StatusForbidden)
+			sendResponse(w, models.Forbidden, http.StatusForbidden)
 			return
 		}
 
@@ -385,7 +385,7 @@ func (app *App) TokenHandler() http.HandlerFunc {
 		switch {
 		case errors.Is(err, db.TokenNotFound):
 			logger.Debug("[http] Password reset token %s not found: %s %s\n", req.Code, r.Method, r.URL)
-			sendResponse(w, nil, http.StatusForbidden)
+			sendResponse(w, models.Forbidden, http.StatusForbidden)
 			return
 		case err != nil:
 			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
@@ -407,7 +407,7 @@ func (app *App) TokenHandler() http.HandlerFunc {
 			return
 		}
 
-		sendResponse(w, mapAccessTokenToJson(accessToken), http.StatusCreated)
+		sendResponse(w, mapAccessTokenToJson(&accessToken), http.StatusCreated)
 	}
 }
 
@@ -430,7 +430,7 @@ func (app *App) TicketHandler() http.HandlerFunc {
 			return
 		}
 
-		sendResponse(w, mapTicketToJson(ticket), http.StatusCreated)
+		sendResponse(w, mapTicketToJson(&ticket), http.StatusCreated)
 	}
 }
 
@@ -442,10 +442,66 @@ func (app *App) HistoryHandler() http.HandlerFunc {
 		messages := app.MessageRepository.GetMessages(100)
 
 		for _, message := range messages {
-			jsonMessages = append(jsonMessages, mapMessageToJson(message))
+			jsonMessages = append(jsonMessages, mapMessageToJson(&message))
 		}
 
 		sendResponse(w, jsonMessages, http.StatusOK)
+	}
+}
+
+func (app *App) UpdateMessageHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug("[http] Request URL: %s %s\n", r.Method, r.URL)
+		if err := checkAuthorization(r); errors.Is(err, Unauthorized) {
+			logger.Debug("[http] Unauthorized\n")
+			sendResponse(w, models.Unauthorized, http.StatusUnauthorized)
+			return
+		}
+
+		tokenString := parseToken(r)
+		accessToken, _ := app.AccessTokenRepository.FindTokenByString(tokenString)
+
+		vars := mux.Vars(r)
+		messageID := vars["uuid"]
+		message, err := app.MessageRepository.GetMessage(messageID)
+		switch {
+		case errors.Is(err, db.MessageNotFound):
+			logger.Debug("[http] Message #%s not found.\n", messageID)
+			sendResponse(w, models.MessageNotFound, http.StatusNotFound)
+			return
+		case err != nil:
+			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		case accessToken.UserID != message.UserID:
+			logger.Debug("[http] User #%s cannot edit message of user %#s.\n", accessToken.UserID, message.UserID)
+			sendResponse(w, models.Forbidden, http.StatusForbidden)
+			return
+		}
+
+		req := models.UpdateMessageRequest{}
+		err = parse(r, &req)
+		if err != nil {
+			logger.Error("[http] Cannot parse post body. err=%v\n", err)
+			sendResponse(w, models.ErrorResponse{Code: http.StatusBadRequest}, http.StatusBadRequest)
+			return
+		}
+
+		message, err = app.MessageRepository.UpdateMessage(&message, req.Text)
+		if err != nil {
+			logger.Error("[http] Unexpected error: %s %s %s\n", r.Method, r.URL, err)
+			sendResponse(w, models.InternalServerError, http.StatusInternalServerError)
+			return
+		}
+
+		app.notifications <- &models.Message{
+			ID:        uuid.NewString(),
+			Type:      models.UpdateMessage,
+			UserID:    accessToken.UserID,
+			Data:      mapMessageToJson(&message),
+			CreatedAt: int(time.Now().Unix()),
+		}
+		sendResponse(w, mapMessageToJson(&message), http.StatusOK)
 	}
 }
 
