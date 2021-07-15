@@ -34,5 +34,5 @@ type JsonMessage struct {
 }
 
 type UpdateMessageRequest struct {
-	Text string `json:"text" validate:"max=2000000"` // rough rounded limit 2 MiB
+	Text string `json:"text" validate:"min=1,max=2000000"` // rough rounded limit 2 MiB
 }
