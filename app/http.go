@@ -494,6 +494,13 @@ func (app *App) UpdateMessageHandler() http.HandlerFunc {
 			return
 		}
 
+		// Разрешаем редактировать только сообщения, которые отправлены не позднее 2 часов назад
+		if int64(message.CreatedAt) < time.Now().Add(-time.Duration(2)*time.Hour).Unix() {
+			logger.Debug("[http] Message #%s was sent more than 2 hours before.\n", message.ID)
+			sendResponse(w, models.Forbidden, http.StatusForbidden)
+			return
+		}
+
 		app.notifications <- &models.Message{
 			ID:        uuid.NewString(),
 			Type:      models.UpdateMessage,
